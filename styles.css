@@ -417,3 +417,9 @@ details.more .btn { margin-top: 10px; }
 .he-body { pointer-events: none; }
 .he-empty { opacity: .7; border-style: dashed; }
 .t-feat { margin: -8px 0 4px 32px; }
+
+/* Rivin napautus merkitsee tehdyksi */
+.item-row[data-action] { cursor: pointer; }
+.item-row[data-action]:active { background: var(--green-l); }
+span.check { display: block; }
+button.info-dot { border: 0; background: var(--green-l); color: var(--green); border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 700; cursor: pointer; vertical-align: 1px; margin-left: 4px; }

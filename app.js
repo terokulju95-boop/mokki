@@ -226,9 +226,10 @@ const THEME_DOC = () => doc(db, "app", "theme");
 const THEME_KEY = "mokki_theme";
 // [avain, oletusotsikko, oletuskoko]
 const HOME_CARDS = [
-  ["notice", "Tiedote", "full"], ["bookings", "Mökillä", "full"], ["todos", "Tehtävät", "full"],
-  ["shopping", "Vie mukana seuraavalla kerralla", "full"], ["sweep", "Edellinen nuohous", "half"], ["wood", "Edelliset puut", "half"],
-  ["payments", "Maksut erääntymässä", "full"], ["season", "Kausilista kesken", "full"], ["address", "Mökin osoite", "compact"]
+  ["notice", "Tiedote", "full"], ["season", "Kausilista", "full"], ["bookings", "Mökillä", "full"], ["todos", "Tehtävät", "full"],
+  ["shopping", "Vie mukana seuraavalla kerralla", "full"], ["buy", "Hankittavat", "full"], ["inventory", "Inventaario", "full"],
+  ["sweep", "Edellinen nuohous", "half"], ["wood", "Edelliset puut", "half"],
+  ["payments", "Maksut erääntymässä", "full"], ["address", "Mökin osoite", "compact"]
 ];
 const HOME_SIZES = [["full", "Iso"], ["compact", "Pieni"], ["half", "Puolikas"]];
 const NAV_DEFAULTS = Object.fromEntries(NAV);
@@ -531,7 +532,7 @@ const HOME_DATA = {
     };
   },
   shopping: () => {
-    const shop = list("shopping").filter(s => !s.done);
+    const shop = list("shopping").filter(s => !s.done && shopList(s) === "vie");
     return {
       count: shop.length, href: "#tavarat", attrs: tabAttrs("tavarat", "vie"),
       body: shop.length ? `<div class="chips">${shop.slice(0, 10).map(s => chip(esc(s.text))).join("")}${shop.length > 10 ? chip("+" + (shop.length - 10)) : ""}</div>` : '<div class="muted">Ei mitään muistettavaa.</div>',
@@ -567,24 +568,45 @@ const HOME_DATA = {
     };
   },
   season: () => {
-    for (const season of ["talvi", "kevat"]) {
-      const run = currentRun(season); if (!run) continue;
-      const items = seasonItems(season); if (!items.length) continue;
-      const done = items.filter(i => run.completed?.[i.id]).length;
-      if (done === items.length) continue;
-      return {
-        href: "#kausi", attrs: tabAttrs("kausi", season),
-        body: `<div class="run-head"><div class="big">${esc(run.label)}</div><div class="pct">${done}/${items.length}</div></div><div class="bar"><i style="width:${Math.round(done / items.length * 100)}%"></i></div>`,
-        short: `${esc(run.label)} <span class="muted">· ${done}/${items.length}</span>`
-      };
-    }
-    return null;
+    const season = seasonByMonth();
+    const items = seasonItems(season);
+    const run = currentRun(season); const done = run?.completed || {};
+    const left = items.filter(i => !done[i.id]);
+    const n = items.length, dc = n - left.length;
+    const pct = n ? Math.round(dc / n * 100) : 0;
+    const head = `<div class="run-head"><div class="big">${SEASON_NAMES[season]}</div>${n ? `<div class="pct ${dc === n ? "ok" : ""}">${dc}/${n}</div>` : ""}</div>${n ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}`;
+    const rows = left.map(it => `<div class="item"><div class="item-row" data-action="toggleCheck" data-id="${it.id}"><span class="check"></span><div class="item-main"><div class="item-title">${esc(it.title)}</div></div></div></div>`).join("");
+    return {
+      href: "#kausi", attrs: tabAttrs("kausi", season), noFullLink: true,
+      right: `<a href="#kausi" ${tabAttrs("kausi", season)}>Avaa ›</a>`,
+      body: head + (!n ? `<div class="muted">Lista on tyhjä. Lisää kohdat Kausi-sivulla.</div>` : left.length ? `<div class="list flat">${rows}</div>` : '<div class="done-msg">✓ Kaikki tehty!</div>'),
+      short: `${SEASON_NAMES[season]} <span class="muted">· ${dc}/${n}</span>`
+    };
+  },
+  buy: () => {
+    const items = list("shopping").filter(s => !s.done && shopList(s) === "osta").sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+    return {
+      count: items.length, href: "#tavarat", attrs: tabAttrs("tavarat", "osta"), noFullLink: true,
+      right: `<a href="#tavarat" ${tabAttrs("tavarat", "osta")}>Kaikki ›</a>`,
+      body: items.length ? `<div class="list flat">${items.slice(0, 8).map(shopRow).join("")}</div>` : '<div class="muted">Ei hankittavaa.</div>',
+      short: items.length ? esc(items.slice(0, 4).map(x => x.text).join(", ")) : '<span class="muted">Ei hankittavaa</span>'
+    };
+  },
+  inventory: () => {
+    const rank = { loppu: 0, vahissa: 1, ok: 2 };
+    const inv = list("inventory").sort((a, b) => (rank[a.status || "ok"] - rank[b.status || "ok"]) || a.name.localeCompare(b.name, "fi"));
+    const low = inv.filter(i => (i.status || "ok") !== "ok").length;
+    return {
+      count: inv.length, href: "#tavarat", attrs: tabAttrs("tavarat", "inv"), noFullLink: true,
+      right: `<a href="#tavarat" ${tabAttrs("tavarat", "inv")}>Kaikki ›</a>`,
+      body: inv.length ? `<div class="list flat">${inv.slice(0, 10).map(invRow).join("")}</div>${inv.length > 10 ? `<div class="muted small">+ ${inv.length - 10} muuta</div>` : ""}` : '<div class="muted">Inventaario on tyhjä.</div>',
+      short: inv.length ? `${inv.length} tavaraa${low ? ` · <span class="warn">${low} vähissä tai loppu</span>` : ""}` : '<span class="muted">Inventaario on tyhjä</span>'
+    };
   }
 };
 const HOME_EMPTY = {
   notice: "Tiedote on tyhjä, joten sitä ei näytetä. Kirjoita tiedote yläpuolelle.",
-  payments: "Näkyy vain, kun laskujen eräpäivät ovat käytössä (Lisää → Ulkoasu → Ominaisuudet) ja maksuja erääntyy kuukauden sisällä.",
-  season: "Näkyy vain, kun kausilista on kesken."
+  payments: "Näkyy vain, kun laskujen eräpäivät ovat käytössä (Lisää → Ulkoasu → Ominaisuudet) ja maksuja erääntyy kuukauden sisällä."
 };
 
 function homeCardHtml(k, size) {
@@ -740,7 +762,7 @@ function vTodos() {
   const open = openTodos();
   const done = list("todos").filter(t => t.done).sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || ""));
   let h = `<form class="quick" data-form="addTodo"><input id="todo-new" name="text" placeholder="Uusi tehtävä, esim. Vaihda saunan lauteet" autocomplete="off" enterkeyhint="done"><button class="btn primary">Lisää</button></form>`;
-  h += `<p class="form-note">Napauta tehtävää lisätäksesi tärkeyden, määräajan tai tekijän.</p>`;
+  h += `<p class="form-note">Napauta tehtävää merkitäksesi sen tehdyksi. Kynästä ✎ voit muokata tehtävää.</p>`;
   h += open.length ? `<div class="list">${open.map(todoRow).join("")}</div>` : empty("Ei avoimia tehtäviä 🎉");
   if (done.length) h += details("d-todos", `Tehdyt (${done.length})`, `<div class="list">${done.map(todoRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="todos">Poista tehdyt listalta</button>`);
   return h;
@@ -750,19 +772,30 @@ function todoRow(t) {
   if (t.priority === "tarkea") chips.push(chip("Tärkeä", "warn"));
   if (F("todoDue") && t.due && !t.done) chips.push(chip(fmtDate(t.due), t.due < today() ? "bad" : ""));
   if (t.assignee) chips.push(chip("👤 " + esc(t.assignee)));
-  return `<div class="item ${t.done ? "is-done" : ""}"><div class="item-row">
-    <button class="check ${t.done ? "on" : ""}" data-action="toggleTodo" data-id="${t.id}" aria-label="${t.done ? "Merkitse tekemättömäksi" : "Merkitse tehdyksi"}"></button>
-    <div class="item-main" data-action="editTodo" data-id="${t.id}"><div class="item-title">${esc(t.text)}</div>
+  return `<div class="item ${t.done ? "is-done" : ""}"><div class="item-row" data-action="toggleTodo" data-id="${t.id}" role="button" aria-label="${t.done ? "Merkitse tekemättömäksi" : "Merkitse tehdyksi"}: ${esc(t.text)}">
+    <span class="check ${t.done ? "on" : ""}"></span>
+    <div class="item-main"><div class="item-title">${esc(t.text)}</div>
     ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
     ${t.done ? `<div class="by">✓ ${esc(t.doneByName)} · ${fmtDT(t.doneAt)}</div>` : `<div class="by">Lisännyt ${esc(t.createdByName)}</div>`}</div>
+    <button class="icon-btn" data-action="editTodo" data-id="${t.id}" aria-label="Muokkaa">✎</button>
   </div></div>`;
 }
 
 // ---------- Kausilistat ----------
-const defaultSeason = () => { const m = new Date().getMonth() + 1; return (m >= 8 || m <= 1) ? "talvi" : "kevat"; };
+// Kevään lista maalis–elokuu, talven lista syys–helmikuu.
+const SEASON_NAMES = { talvi: "❄️ Talviteloille", kevat: "🌱 Kevään käyttöönotto" };
+const SEASON_START_MONTH = { kevat: 3, talvi: 9 };
+const seasonByMonth = () => { const m = new Date().getMonth() + 1; return m >= 3 && m <= 8 ? "kevat" : "talvi"; };
+const defaultSeason = seasonByMonth;
+// Kausi lasketaan alkaneeksi kaksi kuukautta ennen virallista alkua, jotta etuajassa aloitettu lista pysyy voimassa.
+function runThreshold(season) {
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1, sm = SEASON_START_MONTH[season];
+  return new Date(m >= sm ? y : y - 1, sm - 3, 1).toISOString();
+}
 const seasonItems = season => list("checkItems").filter(i => i.season === season).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.createdAt || "").localeCompare(b.createdAt || ""));
 const seasonRuns = season => list("seasonRuns").filter(r => r.season === season).sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""));
-const currentRun = season => seasonRuns(season)[0];
+// Kuluvan kauden kierros. Edellisvuoden kierros jää historiaan, ja uusi alkaa automaattisesti ensimmäisestä ruksista.
+const currentRun = season => { const r = seasonRuns(season)[0]; return r && (r.startedAt || "") >= runThreshold(season) ? r : null; };
 
 function startRun(season) {
   const y = new Date().getFullYear();
@@ -775,13 +808,13 @@ function vKausi() {
   const run = currentRun(season);
   const done = run?.completed || {};
   const doneCount = items.filter(i => done[i.id]).length;
-  let h = seg("kausi", [["talvi", "❄️ Talviteloille"], ["kevat", "🌱 Kevään käyttöönotto"]], defaultSeason());
+  let h = seg("kausi", [["talvi", SEASON_NAMES.talvi], ["kevat", SEASON_NAMES.kevat]], defaultSeason());
 
   if (run) {
     const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
     h += `<div class="card run"><div class="run-head"><div><div class="card-label">Käynnissä oleva kausi</div><div class="big">${esc(run.label)}</div><div class="muted small">Aloitti ${esc(run.startedByName)} ${fmtDT(run.startedAt)}</div></div><div class="pct ${pct === 100 ? "ok" : ""}">${doneCount}/${items.length}</div></div><div class="bar"><i style="width:${pct}%"></i></div>${pct === 100 && items.length ? '<div class="done-msg">✓ Kaikki tehty!</div>' : ""}</div>`;
   } else if (items.length) {
-    h += `<div class="card muted">Tälle listalle ei ole vielä aloitettu kautta. Kausi alkaa automaattisesti, kun ruksaat ensimmäisen kohdan.</div>`;
+    h += `<div class="card muted">Tämän kauden lista on vielä koskematon. Kausi alkaa automaattisesti, kun merkitset ensimmäisen kohdan tehdyksi. Napauta kohtaa merkitäksesi sen, kynästä ✎ voit muokata.</div>`;
   }
 
   if (!items.length) {
@@ -803,10 +836,10 @@ function checkItemRow(it, d, idx, n) {
   const open = S.expanded.has(it.id);
   const hasMore = it.instructions || it.photos?.length;
   return `<div class="item ${d ? "is-done" : ""}">
-    <div class="item-row">
-      <button class="check ${d ? "on" : ""}" data-action="toggleCheck" data-id="${it.id}" aria-label="${d ? "Peru merkintä" : "Merkitse tehdyksi"}"></button>
-      <div class="item-main" data-action="${hasMore ? "expand" : "editItem"}" data-id="${it.id}">
-        <div class="item-title">${esc(it.title)}${hasMore ? ` <span class="info-dot" title="Ohje tai kuva">${it.photos?.length ? "📷" : "ⓘ"}</span>` : ""}</div>
+    <div class="item-row" data-action="toggleCheck" data-id="${it.id}" role="button" aria-label="${d ? "Peru merkintä" : "Merkitse tehdyksi"}: ${esc(it.title)}">
+      <span class="check ${d ? "on" : ""}"></span>
+      <div class="item-main">
+        <div class="item-title">${esc(it.title)}${hasMore ? ` <button class="info-dot" data-action="expand" data-id="${it.id}" aria-label="Näytä ohje">${it.photos?.length ? "📷" : "ⓘ"} ${open ? "piilota" : "ohje"}</button>` : ""}</div>
         ${d ? `<div class="by">✓ ${esc(d.byName)} · ${fmtDT(d.at)}</div>` : ""}
       </div>
       ${S.editOrder
@@ -818,30 +851,43 @@ function checkItemRow(it, d, idx, n) {
 }
 
 // ---------- Tavarat ----------
+const shopList = s => s.list === "osta" ? "osta" : "vie";
 function vTavarat() {
   const t = curTab("tavarat", "vie");
-  return seg("tavarat", [["vie", "🧺 Vie mukana"], ["inv", "📦 Inventaario"]]) + (t === "vie" ? vShopping() : vInventory());
+  return seg("tavarat", [["vie", "🧺 Vie mukana"], ["osta", "🛒 Hankittavat"], ["inv", "📦 Inventaario"]]) + (t === "inv" ? vInventory() : vShopping(t === "osta" ? "osta" : "vie"));
 }
-function vShopping() {
-  const items = list("shopping");
+function vShopping(kind) {
+  const items = list("shopping").filter(i => shopList(i) === kind);
   const open = items.filter(i => !i.done).sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
   const done = items.filter(i => i.done).sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || ""));
-  let h = `<p class="form-note">Mitä pitää muistaa ottaa mukaan seuraavalla mökkireissulla.</p>
-    <form class="quick" data-form="addShop"><input id="shop-new" name="text" placeholder="esim. Kaasupullo, wc-paperia" autocomplete="off" enterkeyhint="done"><button class="btn primary">Lisää</button></form>`;
+  const intro = kind === "osta"
+    ? "Mitä pitää jossain vaiheessa ostaa tai uusia, esim. tyhjä kaasupullo. Kun merkitset inventaariossa tavaran loppuneeksi, se tulee tänne. Napauta riviä, kun asia on hankittu."
+    : "Mitä pitää muistaa ottaa mukaan seuraavalla mökkireissulla. Napauta riviä, kun asia on hoidettu.";
+  let h = `<p class="form-note">${intro}</p>
+    <form class="quick" data-form="addShop"><input type="hidden" name="list" value="${kind}"><input id="shop-new-${kind}" name="text" placeholder="${kind === "osta" ? "esim. Kaasupullo, saunan tuoksut" : "esim. Kaasupullo, wc-paperia"}" autocomplete="off" enterkeyhint="done"><button class="btn primary">Lisää</button></form>`;
   h += open.length ? `<div class="list">${open.map(shopRow).join("")}</div>` : empty("Lista on tyhjä.");
-  if (done.length) h += details("d-shop", `Hoidetut (${done.length})`, `<div class="list">${done.map(shopRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="shopping">Tyhjennä hoidetut</button>`);
+  if (done.length) h += details("d-shop-" + kind, `${kind === "osta" ? "Hankitut" : "Hoidetut"} (${done.length})`, `<div class="list">${done.map(shopRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="shopping" data-list="${kind}">Tyhjennä listalta</button>`);
   return h;
 }
 function shopRow(i) {
-  return `<div class="item ${i.done ? "is-done" : ""}"><div class="item-row">
-    <button class="check ${i.done ? "on" : ""}" data-action="toggleShop" data-id="${i.id}" aria-label="Merkitse hoidetuksi"></button>
-    <div class="item-main"><div class="item-title">${esc(i.text)}</div><div class="by">${i.done ? `✓ ${esc(i.doneByName)} · ${fmtDT(i.doneAt)}` : `${esc(i.createdByName)}${i.invId ? " · inventaariosta" : ""}`}</div></div>
+  const kind = shopList(i);
+  const inv = i.invId ? findIn("inventory", i.invId) : null;
+  const sub = i.done ? `✓ ${esc(i.doneByName)} · ${fmtDT(i.doneAt)}` : [esc(i.createdByName), inv ? "inventaariosta" + (inv.status && inv.status !== "ok" ? ` (${INV_STATUS[inv.status][0].toLowerCase()})` : "") : ""].filter(Boolean).join(" · ");
+  return `<div class="item ${i.done ? "is-done" : ""}"><div class="item-row" data-action="toggleShop" data-id="${i.id}" role="button" aria-label="Merkitse ${kind === "osta" ? "hankituksi" : "hoidetuksi"}: ${esc(i.text)}">
+    <span class="check ${i.done ? "on" : ""}"></span>
+    <div class="item-main"><div class="item-title">${esc(i.text)}</div><div class="by">${sub}</div></div>
+    ${kind === "osta" && !i.done ? `<button class="btn small ghost" data-action="moveShop" data-id="${i.id}" title="Siirrä Vie mukana -listalle">→ Vie</button>` : ""}
     <button class="icon-btn" data-action="delShop" data-id="${i.id}" aria-label="Poista">✕</button>
   </div></div>`;
 }
+function invRow(i) {
+  const [lab, cls] = INV_STATUS[i.status || "ok"] || INV_STATUS.ok;
+  const sub = [i.qty, i.location].filter(Boolean).map(esc).join(" · ");
+  return `<div class="item"><div class="item-row"><div class="item-main" data-action="editInv" data-id="${i.id}"><div class="item-title">${esc(i.name)}</div>${sub ? `<div class="by">${sub}</div>` : ""}</div><button class="status ${cls}" data-action="invStatus" data-id="${i.id}">${lab}</button></div></div>`;
+}
 function vInventory() {
   const inv = list("inventory");
-  let h = `<p class="form-note">Mitä mökillä on. Kun merkitset tavaran vähissä tai loppuneeksi, se lisätään Vie mukana -listaan.</p>
+  let h = `<p class="form-note">Mitä mökillä on. Napauta tilaa (OK → Vähissä → Loppu). Vähissä tai loppu oleva tavara lisätään Hankittavat-listaan.</p>
     <button class="btn primary block" data-action="addInv">+ Lisää tavara</button>`;
   if (!inv.length) return h + empty("Inventaario on tyhjä.");
   const low = inv.filter(i => i.status && i.status !== "ok").length;
@@ -850,11 +896,7 @@ function vInventory() {
   cats.forEach(c => {
     const items = inv.filter(i => (i.category || "Muu") === c).sort((a, b) => a.name.localeCompare(b.name, "fi"));
     if (!items.length) return;
-    h += secH(esc(c)) + `<div class="list">${items.map(i => {
-      const [lab, cls] = INV_STATUS[i.status || "ok"] || INV_STATUS.ok;
-      const sub = [i.qty, i.location].filter(Boolean).map(esc).join(" · ");
-      return `<div class="item"><div class="item-row"><div class="item-main" data-action="editInv" data-id="${i.id}"><div class="item-title">${esc(i.name)}</div>${sub ? `<div class="by">${sub}</div>` : ""}</div><button class="status ${cls}" data-action="invStatus" data-id="${i.id}">${lab}</button></div></div>`;
-    }).join("")}</div>`;
+    h += secH(esc(c)) + `<div class="list">${items.map(invRow).join("")}</div>`;
   });
   return h;
 }
@@ -1285,7 +1327,7 @@ const ACTIONS = {
     });
   },
   clearDone: d => {
-    const done = list(d.col).filter(x => x.done); if (!done.length) return;
+    const done = list(d.col).filter(x => x.done && (!d.list || shopList(x) === d.list)); if (!done.length) return;
     if (!confirm(`Poistetaanko ${done.length} kohtaa pysyvästi?`)) return;
     const b = writeBatch(db); done.forEach(x => b.delete(doc(db, d.col, x.id))); b.commit().catch(fail);
   },
@@ -1341,14 +1383,15 @@ const ACTIONS = {
     }
   },
   delShop: d => remove("shopping", d.id),
+  moveShop: d => { patch("shopping", d.id, { list: "vie" }); toast("Siirretty Vie mukana -listalle"); },
   addInv: () => openForm({ title: "Uusi tavara", fields: INV_FIELDS, onSubmit: v => { save("inventory", v); } }),
-  editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); if (v.status !== "ok") ensureShopping(i.id, v.name); }, onDelete: () => remove("inventory", i.id) }); },
+  editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); if (v.status !== "ok") ensureShopping(i.id, v.name); else closeLinked(i.id); }, onDelete: () => remove("inventory", i.id) }); },
   invStatus: d => {
     const i = findIn("inventory", d.id); if (!i) return;
     const order = ["ok", "vahissa", "loppu"];
     const next = order[(order.indexOf(i.status || "ok") + 1) % order.length];
     patch("inventory", i.id, { status: next, updatedByName: S.me.name, updatedAt: nowIso() });
-    if (next !== "ok") ensureShopping(i.id, i.name);
+    if (next !== "ok") ensureShopping(i.id, i.name); else closeLinked(i.id);
   },
 
   // Kulut
@@ -1489,10 +1532,15 @@ const ACTIONS = {
   }
 };
 
+// Loppunut tai vähissä oleva tavara → Hankittavat-lista (ei Vie mukana).
 function ensureShopping(invId, name) {
   if (list("shopping").some(s => !s.done && s.invId === invId)) return;
-  save("shopping", { text: name, invId, done: false });
-  toast(`"${name}" lisätty Vie mukana -listaan`);
+  save("shopping", { text: name, invId, done: false, list: "osta" });
+  toast(`"${name}" lisätty Hankittavat-listaan`);
+}
+// Tavara taas OK → siihen liittyvät avoimet rivit merkitään hoidetuiksi.
+function closeLinked(invId) {
+  list("shopping").filter(s => !s.done && s.invId === invId).forEach(s => patch("shopping", s.id, { done: true, doneByName: S.me.name, doneAt: nowIso() }));
 }
 
 function bookingForm(values, id) {
@@ -1568,7 +1616,8 @@ const FORMS = {
   addTodo: f => { const v = f.elements.text.value.trim(); if (!v) return; save("todos", { text: v, notes: "", priority: "normaali", due: "", assignee: "", done: false }); f.elements.text.value = ""; },
   addShop: f => {
     const v = f.elements.text.value.trim(); if (!v) return;
-    v.split(",").map(s => s.trim()).filter(Boolean).forEach(text => save("shopping", { text, done: false }));
+    const kind = f.elements.list?.value === "osta" ? "osta" : "vie";
+    v.split(",").map(s => s.trim()).filter(Boolean).forEach(text => save("shopping", { text, done: false, list: kind }));
     f.elements.text.value = "";
   }
 };
