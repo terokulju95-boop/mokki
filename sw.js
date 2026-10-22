@@ -1,6 +1,6 @@
 // Mökki – service worker: sovellus aukeaa myös ilman verkkoa.
 // Kun päivität sovelluksen tiedostoja GitHubiin, kasvata versionumeroa.
-const CACHE = "mokki-v2";
+const CACHE = "mokki-v3";
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./firebase-config.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
@@ -9,8 +9,8 @@ const SDK_FILES = ["firebase-app.js", "firebase-auth.js", "firebase-firestore.js
 self.addEventListener("install", e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    await c.addAll(SHELL);
-    try { await c.addAll(SDK_FILES); } catch (err) { /* ladataan myöhemmin */ }
+    // Jokainen tiedosto erikseen: yksi puuttuva tiedosto ei estä asennusta
+    await Promise.all([...SHELL, ...SDK_FILES].map(u => c.add(u).catch(() => {})));
     await self.skipWaiting();
   })());
 });
