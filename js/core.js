@@ -432,7 +432,10 @@ function setupRange(box, f) {
   if (!box) return;
   const grid = box.querySelector(".dr"), sum = box.querySelector(".dr-sum");
   const inS = box.querySelector(`[name="${f.name}_start"]`), inE = box.querySelector(`[name="${f.name}_end"]`);
-  const st = { start: grid.dataset.start || "", end: grid.dataset.end || "", month: (grid.dataset.start || today()).slice(0, 7), drag: null, waitingEnd: false };
+  // Jos lomake avattiin yhdellä valmiiksi valitulla päivällä (napautus varauskalenterista),
+  // seuraava napautus asettaa lähtöpäivän eikä aloita valintaa alusta.
+  const st = { start: grid.dataset.start || "", end: grid.dataset.end || "", month: (grid.dataset.start || today()).slice(0, 7), drag: null };
+  st.waitingEnd = !!st.start && st.start === st.end;
   const booked = typeof f.booked === "function" ? f.booked() : [];
   const MONTHS_FI = ["Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu", "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"];
   const set = (a, b) => { [st.start, st.end] = a <= b ? [a, b] : [b, a]; inS.value = st.start; inE.value = st.end; syncDateShow(inS); syncDateShow(inE); draw(); };

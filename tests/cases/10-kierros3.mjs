@@ -31,6 +31,18 @@ export default async ({ page, ctx, go, text, check, db, URL0, OUT }) => {
   const bk = Object.values((await db()).bookings).filter(x => x.who === "Tero");
   check("varaus tallentui alku- ja loppupäivällä", bk.some(x => x.start && x.end && x.end > x.start));
   check("kalenterissa nimi yksittäiselle varaukselle", (await page.locator(".cal-b.name").count()) > 0 || true);
+  // varauskalenterin päivästä avattu lomake: seuraava napautus = lähtöpäivä
+  await go(page, "#varaukset");
+  await page.click('[data-action="calView"][data-v="kk"]').catch(() => {});
+  await page.click('[data-action="calNav"][data-dir="1"]'); await page.waitForTimeout(200);
+  await page.locator(".cal-cell:not(.blank)").nth(14).click(); await page.waitForTimeout(250);
+  const dd = page.locator("#modal .dr-d");
+  check("valittu päivä näkyy valmiiksi", (await page.locator("#modal .dr-d.s").count()) === 1);
+  await dd.nth(17).click(); await page.waitForTimeout(150);
+  const s2 = await page.locator("#modal .dr-sum").innerText();
+  check("yksi napautus riittää lähtöpäiväksi", /3 yötä/.test(s2), s2);
+  await page.click("[data-mclose]");
+
   // kenttien järjestys: maksun Summa ylimmäksi
   await go(page, "#ulkoasu"); await page.waitForTimeout(300);
   await page.click('[data-action="fieldsForm"][data-f="maksu"]'); await page.waitForTimeout(150);

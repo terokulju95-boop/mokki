@@ -160,7 +160,7 @@ export const ACTIONS = {
     if (bs.length === 1 && confirm(`${bs[0].who} on varannut tämän päivän. Muokataanko varausta?\n\n(Peruuta = lisää uusi varaus)`)) return ACTIONS.editBooking({ id: bs[0].id });
     bookingForm({ start: d.date, end: d.date, who: S.me.name });
   },
-  addBooking: () => bookingForm({ start: today(), end: today(), who: S.me.name }),
+  addBooking: () => bookingForm({ start: "", end: "", who: S.me.name }),
   editBooking: d => { const b = findIn("bookings", d.id); if (b) bookingForm(b, b.id); },
 
   // Korjaukset
