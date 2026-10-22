@@ -384,9 +384,36 @@ details.more .btn { margin-top: 10px; }
 .t-warn { background: var(--warn-l); color: var(--warn); border-radius: var(--ri); padding: 8px 12px; font-size: .88rem; font-weight: 600; }
 .form-note.ok { color: var(--ok); }
 .t-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.t-home .t-vis { width: 22px; height: 22px; accent-color: var(--green); flex: none; margin: 0; }
-.t-home .t-title { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: var(--ri); padding: 8px 10px; font-weight: 600; font-size: max(16px, 1rem); }
+.t-title { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: var(--ri); padding: 8px 10px; font-weight: 600; font-size: max(16px, 1rem); }
 .savebar { position: sticky; bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom)); z-index: 10; display: flex; align-items: center; gap: 8px; background: var(--card); border: var(--bw) solid var(--line); border-radius: var(--r); padding: 10px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
 .savebar-t { flex: 1; font-size: .85rem; color: var(--muted); }
 .savebar.dirty { border-color: var(--green); }
 .savebar.dirty .savebar-t { color: var(--ink); font-weight: 600; }
+
+/* ---------- Etusivun kortit ---------- */
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: start; }
+.home-grid > * { grid-column: span 2; min-width: 0; }
+.home-grid > .hc-half { grid-column: span 1; }
+.home-grid > .hc-half.card, .home-grid > .he.hc-half .card { height: 100%; }
+.hc-compact { display: flex; align-items: center; gap: 10px; padding-top: calc(var(--pad-y) - 4px); padding-bottom: calc(var(--pad-y) - 4px); }
+.hc-compact .hc-txt { flex: 1; min-width: 0; }
+.hc-compact .card-label { margin-bottom: 0; font-size: .68rem; }
+.hc-compact .hc-v { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hc-compact .chev { font-size: 1.2rem; }
+.addr-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.addr-btns { display: flex; flex: none; }
+.addr-btns .icon-btn { color: var(--green); font-size: 1.15rem; }
+.home-edit-btn { align-self: center; color: var(--muted); }
+
+/* ---------- Etusivun muokkaus ---------- */
+.he-intro p { margin: 0 0 10px; }
+.he { display: grid; gap: 6px; padding: 8px; border: 2px dashed color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: calc(var(--r) + 4px); background: color-mix(in srgb, var(--green-l) 50%, transparent); }
+.he-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.he-bar .icon-btn { width: 34px; height: 34px; }
+.he-size { flex: 1; min-width: 150px; padding: 2px; }
+.he-size button { padding: 5px 6px; font-size: .78rem; }
+.he .t-title { padding: 6px 10px; font-size: max(16px, 1rem); }
+.he textarea.t-title { font-weight: 400; resize: vertical; }
+.he-body { pointer-events: none; }
+.he-empty { opacity: .7; border-style: dashed; }
+.t-feat { margin: -8px 0 4px 32px; }

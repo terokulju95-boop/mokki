@@ -93,7 +93,7 @@ const PLACE_SUGGESTIONS = ["Sähkökaappi", "Vesijohdon pääsulku", "Tyhjennysv
 const S = {
   user: null, me: null, users: [...DEFAULT_USERS], pins: {}, usersLoaded: false, d: {}, view: "koti", tab: {}, unsubs: [], started: false,
   expanded: new Set(), openDetails: new Set(), editOrder: false, calMonth: null, kulutYear: null, pendingName: null,
-  theme: null, themeDraft: null, themePal: "light", themeMeta: null
+  theme: null, themeDraft: null, themePal: "light", themeMeta: null, homeEdit: false
 };
 const photoCache = new Map();
 
@@ -224,11 +224,13 @@ function toast(msg, isErr = false) {
 // =============================================================
 const THEME_DOC = () => doc(db, "app", "theme");
 const THEME_KEY = "mokki_theme";
+// [avain, oletusotsikko, oletuskoko]
 const HOME_CARDS = [
-  ["notice", "Tiedote", true], ["address", "Mökin osoite", true], ["bookings", "Mökillä", true],
-  ["season", "Kausilista kesken", true], ["latest", "Edellinen nuohous ja puut", false],
-  ["todos", "Tehtävät", true], ["shopping", "Vie mukana seuraavalla kerralla", true], ["payments", "Maksut erääntymässä", true]
+  ["notice", "Tiedote", "full"], ["bookings", "Mökillä", "full"], ["todos", "Tehtävät", "full"],
+  ["shopping", "Vie mukana seuraavalla kerralla", "full"], ["sweep", "Edellinen nuohous", "half"], ["wood", "Edelliset puut", "half"],
+  ["payments", "Maksut erääntymässä", "full"], ["season", "Kausilista kesken", "full"], ["address", "Mökin osoite", "compact"]
 ];
+const HOME_SIZES = [["full", "Iso"], ["compact", "Pieni"], ["half", "Puolikas"]];
 const NAV_DEFAULTS = Object.fromEntries(NAV);
 const COLOR_FIELDS = [
   ["bg", "Taustaväri"], ["card", "Korttien väri"], ["ink", "Tekstin väri"], ["head", "Otsikoiden väri"],
@@ -260,9 +262,17 @@ const DEFAULT_THEME = {
   shape: { radius: 16, btnRadius: 12, inputRadius: 11, border: 1, shadow: "soft", density: "normal" },
   type: { scale: 100, font: "system", headFont: "system", titleSize: 1.25, headWeight: 700, labelCaps: true },
   text: { appName: CABIN_NAME, tagline: "Perheen yhteinen mökkikirja", greeting: "Hei, {nimi}!", notice: "", nav: { ...NAV_DEFAULTS } },
-  home: { order: HOME_CARDS.map(c => c[0]), hidden: {}, titles: {} }
+  home: { order: HOME_CARDS.map(c => c[0]), hidden: {}, titles: {}, size: Object.fromEntries(HOME_CARDS.map(c => [c[0], c[2]])) },
+  features: { todoDue: false, payDue: false, payRecurring: false }
 };
 const T = () => S.themeDraft || S.theme || DEFAULT_THEME;
+// Valinnaiset aikatauluominaisuudet (oletuksena pois). Tiedot säilyvät, vaikka ominaisuus on pois päältä.
+const FEATURES = [
+  ["todoDue", "Tehtävien määräajat", "Tehtävälle voi asettaa määräajan, ja myöhässä olevat näkyvät punaisella."],
+  ["payDue", "Laskujen eräpäivät", "Maksuissa näytetään eräpäivä, myöhässä olevat korostetaan ja etusivulle saa Maksut erääntymässä -kortin."],
+  ["payRecurring", "Toistuvat laskut", "Maksulle voi valita toistuvuuden. Maksetuksi merkitessä sovellus tarjoaa seuraavaa erää ja Kulut-sivu näyttää vuosiarvion."]
+];
+const F = k => !!T().features?.[k];
 const appName = () => T().text.appName || CABIN_NAME;
 const homeTitle = k => T().home.titles[k] || HOME_CARDS.find(c => c[0] === k)[1];
 
@@ -290,17 +300,20 @@ function mergeTheme(src) {
   t.type.titleSize = numIn(ty.titleSize, 0.9, 2.2, t.type.titleSize);
   t.type.headWeight = oneOf(ty.headWeight, HEAD_WEIGHTS.map(w => w[0]), t.type.headWeight);
   if (typeof ty.labelCaps === "boolean") t.type.labelCaps = ty.labelCaps;
+  for (const k of Object.keys(t.features)) if (typeof s.features?.[k] === "boolean") t.features[k] = s.features[k];
   t.text.appName = str(tx.appName, t.text.appName, 40);
   t.text.tagline = str(tx.tagline, t.text.tagline, 100);
   t.text.greeting = str(tx.greeting, t.text.greeting, 100);
   t.text.notice = str(tx.notice, "", 2000);
   for (const k of Object.keys(NAV_DEFAULTS)) t.text.nav[k] = str(tx.nav?.[k], NAV_DEFAULTS[k], 14);
   if (Array.isArray(hm.order)) {
-    const known = hm.order.filter(k => HOME_CARDS.some(c => c[0] === k));
+    const known = hm.order.flatMap(k => k === "latest" ? ["sweep", "wood"] : [k]).filter(k => HOME_CARDS.some(c => c[0] === k));
     t.home.order = [...new Set([...known, ...t.home.order])];
   }
   for (const [k] of HOME_CARDS) {
-    if (hm.hidden?.[k] === true) t.home.hidden[k] = true;
+    const old = k === "sweep" || k === "wood" ? hm.hidden?.latest : undefined;
+    if (hm.hidden?.[k] === true || old === true) t.home.hidden[k] = true;
+    if (HOME_SIZES.some(z => z[0] === hm.size?.[k])) t.home.size[k] = hm.size[k];
     if (typeof hm.titles?.[k] === "string" && hm.titles[k].trim()) t.home.titles[k] = hm.titles[k].slice(0, 60);
   }
   return t;
@@ -348,10 +361,10 @@ function applyTheme(t, force) {
   const p = dark ? t.dark : t.light;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t.topbar === "color" ? p.primary : p.bg);
 }
-const previewTheme = () => applyTheme(T(), S.themeDraft ? S.themePal : null);
+const previewTheme = () => applyTheme(T(), S.themeDraft && S.view === "ulkoasu" ? S.themePal : null);
 const themeDirty = () => !!S.themeDraft && JSON.stringify(S.themeDraft) !== JSON.stringify(S.theme);
 function cacheTheme() { try { localStorage.setItem(THEME_KEY, JSON.stringify(S.theme)); } catch { } }
-function discardThemeDraft() { if (!S.themeDraft) return; S.themeDraft = null; applyTheme(S.theme); }
+function discardThemeDraft() { S.homeEdit = false; if (!S.themeDraft) return; S.themeDraft = null; applyTheme(S.theme); }
 
 S.theme = (() => { try { return mergeTheme(JSON.parse(localStorage.getItem(THEME_KEY) || "{}")); } catch { return mergeTheme({}); } })();
 applyTheme(S.theme);
@@ -478,67 +491,152 @@ const chip = (t, cls = "") => `<span class="chip ${cls}">${t}</span>`;
 // =============================================================
 
 // ---------- Koti ----------
-// Etusivun kortit. Pääkäyttäjä voi järjestää, piilottaa ja nimetä ne (Lisää → Ulkoasu).
-const HOME_RENDER = {
+// Etusivun kortit. Pääkäyttäjä järjestää, nimeää, piilottaa ja valitsee koon
+// suoraan etusivulla (✎ Muokkaa etusivua).
+// Jokainen kortti palauttaa sisällön tai null (ei näytettävää).
+const lastLog = type => list("logs").filter(l => l.type === type).sort(byDateDesc)[0];
+const tabAttrs = (view, tab) => `data-action="tab" data-view="${view}" data-tab="${tab}"`;
+const HOME_DATA = {
   notice: () => {
-    const n = T().text.notice.trim();
-    return n ? `<div class="card notice"><div class="card-label">${esc(homeTitle("notice"))}</div><p class="notes">${nl2br(n)}</p></div>` : "";
+    const n = T().text.notice.trim(); if (!n) return null;
+    return { body: `<p class="notes">${nl2br(n)}</p>`, short: esc(n.split("\n")[0]), cls: "notice" };
   },
   address: () => {
     const info = getInfo();
     const addr = info.rescueAddress || info.address;
-    const full = addr ? addr + (info.municipality ? ", " + info.municipality : "") : "";
-    const mapQ = info.coords || full;
-    return `<div class="card"><div class="card-label">${esc(homeTitle("address"))}</div>
-      ${addr ? `<div class="big">${esc(addr)}</div>${info.municipality ? `<div>${esc(info.municipality)}</div>` : ""}${info.coords ? `<div class="muted small">Koordinaatit ${esc(info.coords)}</div>` : ""}`
-        : `<div class="muted">Mökin osoitetta ei ole vielä lisätty.</div>`}
-      <div class="row-btns">${addr
-        ? `<button class="btn" data-action="copy" data-text="${esc(full)}">Kopioi osoite</button><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQ)}">Avaa kartalla</a>`
-        : `<a class="btn" href="#perustiedot">Lisää osoite</a>`}</div>
-    </div>`;
+    if (!addr) return { href: "#perustiedot", body: `<div class="muted">Osoitetta ei ole vielä lisätty.</div>`, short: '<span class="muted">Ei lisätty – lisää Perustiedoissa</span>' };
+    const full = addr + (info.municipality ? ", " + info.municipality : "");
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(info.coords || full)}`;
+    const btns = `<button class="icon-btn" data-action="copy" data-text="${esc(full)}" aria-label="Kopioi osoite" title="Kopioi osoite">⧉</button><a class="icon-btn" target="_blank" rel="noopener" href="${mapUrl}" aria-label="Avaa kartalla" title="Avaa kartalla">🗺️</a>`;
+    return { body: `<div class="addr-row"><div><b>${esc(addr)}</b>${info.municipality ? `<div class="muted small">${esc(info.municipality)}</div>` : ""}</div><span class="addr-btns">${btns}</span></div>`, short: esc(full), extra: `<span class="addr-btns">${btns}</span>` };
   },
   bookings: () => {
     const t = today();
     const bks = list("bookings").filter(b => (b.end || b.start) >= t).sort((a, b) => a.start.localeCompare(b.start));
-    const now = bks.filter(b => b.start <= t);
-    return `<a class="card link" href="#varaukset"><div class="card-label">${esc(homeTitle("bookings"))}</div>${now.length ? `<div class="big">Nyt: ${now.map(b => esc(b.who)).join(", ")}</div>` : ""}${bks.filter(b => b.start > t).slice(0, 3).map(bookingLine).join("") || (now.length ? "" : '<div class="muted">Ei tulevia varauksia.</div>')}</a>`;
-  },
-  season: () => ["talvi", "kevat"].map(season => {
-    const run = currentRun(season); if (!run) return "";
-    const items = seasonItems(season); if (!items.length) return "";
-    const done = items.filter(i => run.completed?.[i.id]).length;
-    if (done === items.length) return "";
-    return `<a class="card link" href="#kausi" data-action="tab" data-view="kausi" data-tab="${season}"><div class="card-label">${esc(homeTitle("season"))}</div><div class="run-head"><div class="big">${esc(run.label)}</div><div class="pct">${done}/${items.length}</div></div><div class="bar"><i style="width:${Math.round(done / items.length * 100)}%"></i></div></a>`;
-  }).join(""),
-  latest: () => {
-    const lastOf = type => list("logs").filter(l => l.type === type).sort(byDateDesc)[0];
-    const sw = lastOf("nuohous"), wd = lastOf("puut");
-    return `<div class="grid2">
-      <a class="card link small-card" href="#huolto" data-action="tab" data-view="huolto" data-tab="nuohous"><div class="card-label">Edellinen nuohous</div>${sw ? `<div class="big">${fmtDate(sw.date)}</div><div class="muted small">${ago(sw.date)}${sw.cost ? " · " + eur(sw.cost) : ""}${sw.doer === "itse" ? " · itse" : ""}</div>` : '<div class="muted">Ei kirjattu</div>'}</a>
-      <a class="card link small-card" href="#huolto" data-action="tab" data-view="huolto" data-tab="puut"><div class="card-label">Edelliset puut</div>${wd ? `<div class="big">${fmtDate(wd.date)}</div><div class="muted small">${wd.amount ? fmtNum(wd.amount) + " " + esc(wd.unit || "") : ""}${wd.cost ? " · " + eur(wd.cost) : ""}</div>` : '<div class="muted">Ei kirjattu</div>'}</a>
-    </div>`;
+    const now = bks.filter(b => b.start <= t), next = bks.filter(b => b.start > t);
+    const range = b => b.end && b.end !== b.start ? `${fmtShort(b.start)}–${fmtShort(b.end)}` : fmtShort(b.start);
+    return {
+      href: "#varaukset",
+      body: (now.length ? `<div class="big">Nyt: ${now.map(b => esc(b.who)).join(", ")}</div>` : "") + (next.slice(0, 3).map(bookingLine).join("") || (now.length ? "" : '<div class="muted">Ei tulevia varauksia.</div>')),
+      short: now.length ? `Nyt: ${now.map(b => esc(b.who)).join(", ")}` : next.length ? `${esc(next[0].who)} ${range(next[0])}` : '<span class="muted">Ei tulevia varauksia</span>'
+    };
   },
   todos: () => {
     const todos = openTodos();
-    return `<div class="card"><div class="card-label row-between"><span>${esc(homeTitle("todos"))} (${todos.length})</span><a href="#huolto" data-action="tab" data-view="huolto" data-tab="tehtavat">Kaikki ›</a></div>${todos.length ? `<div class="list flat">${todos.slice(0, 5).map(todoRow).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>'}</div>`;
+    return {
+      count: todos.length, href: "#huolto", attrs: tabAttrs("huolto", "tehtavat"), noFullLink: true,
+      right: `<a href="#huolto" ${tabAttrs("huolto", "tehtavat")}>Kaikki ›</a>`,
+      body: todos.length ? `<div class="list flat">${todos.slice(0, 5).map(todoRow).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>',
+      short: todos.length ? esc(todos.slice(0, 3).map(x => x.text).join(", ")) : '<span class="muted">Ei avoimia tehtäviä</span>'
+    };
   },
   shopping: () => {
     const shop = list("shopping").filter(s => !s.done);
-    return `<a class="card link" href="#tavarat" data-action="tab" data-view="tavarat" data-tab="vie"><div class="card-label">${esc(homeTitle("shopping"))} (${shop.length})</div>${shop.length ? `<div class="chips">${shop.slice(0, 10).map(s => chip(esc(s.text))).join("")}${shop.length > 10 ? chip("+" + (shop.length - 10)) : ""}</div>` : '<div class="muted">Ei mitään muistettavaa.</div>'}</a>`;
+    return {
+      count: shop.length, href: "#tavarat", attrs: tabAttrs("tavarat", "vie"),
+      body: shop.length ? `<div class="chips">${shop.slice(0, 10).map(s => chip(esc(s.text))).join("")}${shop.length > 10 ? chip("+" + (shop.length - 10)) : ""}</div>` : '<div class="muted">Ei mitään muistettavaa.</div>',
+      short: shop.length ? esc(shop.slice(0, 4).map(x => x.text).join(", ")) : '<span class="muted">Ei mitään muistettavaa</span>'
+    };
+  },
+  sweep: () => {
+    const l = lastLog("nuohous");
+    return {
+      href: "#huolto", attrs: tabAttrs("huolto", "nuohous"),
+      body: l ? `<div class="big">${fmtDate(l.date)}</div><div class="muted small">${ago(l.date)}${l.doer === "itse" ? " · itse" : ""}</div>` : '<div class="muted">Ei kirjattu</div>',
+      short: l ? `${fmtDate(l.date)} <span class="muted">· ${ago(l.date)}</span>` : '<span class="muted">Ei kirjattu</span>'
+    };
+  },
+  wood: () => {
+    const l = lastLog("puut");
+    const amt = l?.amount ? fmtNum(l.amount) + " " + esc(l.unit || "") : "";
+    return {
+      href: "#huolto", attrs: tabAttrs("huolto", "puut"),
+      body: l ? `<div class="big">${fmtDate(l.date)}</div><div class="muted small">${[ago(l.date), amt].filter(Boolean).join(" · ")}</div>` : '<div class="muted">Ei kirjattu</div>',
+      short: l ? `${fmtDate(l.date)} <span class="muted">· ${[ago(l.date), amt].filter(Boolean).join(" · ")}</span>` : '<span class="muted">Ei kirjattu</span>'
+    };
   },
   payments: () => {
+    if (!F("payDue")) return null;
     const t = today(); const limit = addMonths(t, 1);
     const due = list("payments").filter(p => !p.paid && p.date && p.date <= limit).sort((a, b) => a.date.localeCompare(b.date));
-    return due.length ? `<a class="card link" href="#kulut"><div class="card-label">${esc(homeTitle("payments"))}</div>${due.slice(0, 5).map(p => `<div class="line"><span>${esc(p.name)}</span><span class="${p.date < t ? "bad" : ""}">${eur(p.amount)} · ${fmtShort(p.date)}</span></div>`).join("")}</a>` : "";
+    if (!due.length) return null;
+    return {
+      href: "#kulut",
+      body: due.slice(0, 5).map(p => `<div class="line"><span>${esc(p.name)}</span><span class="${p.date < t ? "bad" : ""}">${eur(p.amount)} · ${fmtShort(p.date)}</span></div>`).join(""),
+      short: `${due.length} kpl · ${eur(due.reduce((s, p) => s + num(p.amount), 0))}`
+    };
+  },
+  season: () => {
+    for (const season of ["talvi", "kevat"]) {
+      const run = currentRun(season); if (!run) continue;
+      const items = seasonItems(season); if (!items.length) continue;
+      const done = items.filter(i => run.completed?.[i.id]).length;
+      if (done === items.length) continue;
+      return {
+        href: "#kausi", attrs: tabAttrs("kausi", season),
+        body: `<div class="run-head"><div class="big">${esc(run.label)}</div><div class="pct">${done}/${items.length}</div></div><div class="bar"><i style="width:${Math.round(done / items.length * 100)}%"></i></div>`,
+        short: `${esc(run.label)} <span class="muted">· ${done}/${items.length}</span>`
+      };
+    }
+    return null;
   }
 };
+const HOME_EMPTY = {
+  notice: "Tiedote on tyhjä, joten sitä ei näytetä. Kirjoita tiedote yläpuolelle.",
+  payments: "Näkyy vain, kun laskujen eräpäivät ovat käytössä (Lisää → Ulkoasu → Ominaisuudet) ja maksuja erääntyy kuukauden sisällä.",
+  season: "Näkyy vain, kun kausilista on kesken."
+};
+
+function homeCardHtml(k, size) {
+  const d = HOME_DATA[k]?.(); if (!d) return "";
+  const label = esc(homeTitle(k)) + (d.count !== undefined ? ` (${d.count})` : "");
+  const cls = `card hc hc-${size} ${d.cls || ""}`;
+  if (size === "compact") {
+    const link = !!d.href && !d.extra;
+    const tag = link ? "a" : "div";
+    return `<${tag} class="${cls} ${link ? "link" : ""}" ${link ? `href="${d.href}" ${d.attrs || ""}` : ""}><div class="hc-txt"><div class="card-label">${label}</div><div class="hc-v">${d.short}</div></div>${d.extra || ""}${link ? '<span class="chev">›</span>' : ""}</${tag}>`;
+  }
+  const link = !!d.href && !d.noFullLink;
+  const tag = link ? "a" : "div";
+  return `<${tag} class="${cls} ${link ? "link" : ""}" ${link ? `href="${d.href}" ${d.attrs || ""}` : ""}><div class="card-label row-between"><span>${label}</span>${d.right || ""}</div>${d.body}</${tag}>`;
+}
 
 function vKoti() {
   const th = T();
+  if (S.homeEdit && isAdmin() && S.themeDraft) return vKotiEdit();
   const greet = esc(th.text.greeting).replace(/\{nimi\}/g, esc(S.me.name));
-  let body = "";
-  th.home.order.forEach(k => { if (!th.home.hidden[k]) body += HOME_RENDER[k]?.() || ""; });
-  return (greet.trim() ? `<div class="hello">${greet}</div>` : "") + (body || empty("Etusivulle ei ole valittu näytettäviä kortteja."));
+  const body = th.home.order.filter(k => !th.home.hidden[k]).map(k => homeCardHtml(k, th.home.size[k])).join("");
+  return (greet.trim() ? `<div class="hello">${greet}</div>` : "")
+    + (body ? `<div class="home-grid">${body}</div>` : empty("Etusivulle ei ole valittu näytettäviä kortteja."))
+    + (isAdmin() ? `<button class="btn ghost small home-edit-btn" data-action="homeEdit">✎ Muokkaa etusivua</button>` : "");
+}
+
+function vKotiEdit() {
+  const D = S.themeDraft, order = D.home.order;
+  const vis = order.filter(k => !D.home.hidden[k]), hid = order.filter(k => D.home.hidden[k]);
+  let h = `<div class="card he-intro"><div class="card-label">Etusivun muokkaus</div>
+    <p class="small">Siirrä kortteja nuolilla, valitse koko ja piilota turhat. <b>Puolikas</b>-kortit asettuvat vierekkäin. Muut näkevät muutokset vasta, kun tallennat.</p>
+    ${tText("text.greeting", "Tervehdys ({nimi} = käyttäjän nimi, tyhjä = ei tervehdystä)", DEFAULT_THEME.text.greeting)}</div>`;
+  h += `<div class="home-grid">${vis.map((k, i) => {
+    const size = D.home.size[k];
+    const def = HOME_CARDS.find(c => c[0] === k)[1];
+    const card = homeCardHtml(k, size) || `<div class="card hc hc-${size} he-empty"><div class="card-label">${esc(homeTitle(k))}</div><div class="muted small">${esc(HOME_EMPTY[k] || "Ei näytettävää juuri nyt.")}</div></div>`;
+    return `<div class="he hc-${size}">
+      <div class="he-bar">
+        <span class="order-btns"><button class="icon-btn" data-action="homeMove" data-key="${k}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="homeMove" data-key="${k}" data-dir="1" ${i === vis.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span>
+        <div class="seg he-size">${HOME_SIZES.map(([z, l]) => `<button data-action="homeSize" data-key="${k}" data-size="${z}" class="${z === size ? "on" : ""}">${l}</button>`).join("")}</div>
+        <button class="icon-btn" data-action="homeHide" data-key="${k}" aria-label="Piilota ${esc(def)}" title="Piilota">✕</button>
+      </div>
+      <input class="t-title" id="${tId("home.titles." + k)}" data-tk="home.titles.${k}" value="${esc(D.home.titles[k] || "")}" placeholder="Otsikko: ${esc(def)}" autocomplete="off">
+      ${k === "notice" ? `<textarea class="t-title" id="${tId("text.notice")}" data-tk="text.notice" rows="2" placeholder="Tiedote kaikille, esim. Laituri korjataan 15.6.">${esc(D.text.notice)}</textarea>` : ""}
+      <div class="he-body" aria-hidden="true">${card}</div>
+    </div>`;
+  }).join("")}</div>`;
+  if (hid.length) h += secH("Piilotetut kortit") + `<div class="chips">${hid.map(k => `<button class="chip-btn" data-action="homeShow" data-key="${k}">+ ${esc(homeTitle(k))}</button>`).join("")}</div>`;
+  h += `<button class="btn danger ghost block" data-action="homeDefaults">Palauta etusivun oletusasettelu</button>`;
+  const [d, txt] = saveBarState();
+  h += `<div id="t-savebar" class="savebar ${d ? "dirty" : ""}"><span class="savebar-t">${txt}</span><button class="btn ghost small" data-action="homeCancel">${d ? "Peru" : "Sulje"}</button><button class="btn primary small" data-action="themeSave" ${d ? "" : "disabled"}>Tallenna kaikille</button></div>`;
+  return h;
 }
 
 // ---------- Huolto ----------
@@ -588,15 +686,9 @@ function vHuolto() {
 
 function sweepSummary(logs) {
   const last = logs[0];
-  const iv = num(getInfo().sweepInterval) || 3;
   if (!last) return `<div class="card"><div class="card-label">Edellinen nuohous</div><div class="muted">Nuohousta ei ole vielä kirjattu.</div></div>`;
-  const next = addMonths(last.date, Math.round(iv * 12));
-  const left = daysBetween(today(), next);
-  const cls = left < 0 ? "bad" : left < 120 ? "warn" : "ok";
-  return `<div class="card"><div class="stat-grid">
-    <div><div class="card-label">Edellinen</div><div class="big">${fmtDate(last.date)}</div><div class="muted small">${ago(last.date)}<br>${last.doer === "itse" ? "Itse" : esc(last.provider || "Nuohooja")}${last.cost ? " · " + eur(last.cost) : ""}</div></div>
-    <div><div class="card-label">Seuraava viimeistään</div><div class="big ${cls}">${fmtDate(next)}</div><div class="muted small">${left < 0 ? "Myöhässä!" : ago(next)}<br>väli ${fmtNum(iv)} v</div></div>
-  </div><div class="form-note">Nuohousvälin voi muuttaa kohdassa Lisää → Perustiedot.</div></div>`;
+  return `<div class="card"><div class="card-label">Edellinen nuohous</div><div class="big">${fmtDate(last.date)}</div>
+    <div class="muted small">${ago(last.date)} · ${last.doer === "itse" ? "Itse" : esc(last.provider || "Nuohooja")}${last.cost ? " · " + eur(last.cost) : ""}</div></div>`;
 }
 
 function woodSummary(logs) {
@@ -642,7 +734,7 @@ function logCard(l) {
 // ---------- Tehtävät ----------
 function openTodos() {
   return list("todos").filter(t => !t.done).sort((a, b) =>
-    ((b.priority === "tarkea") - (a.priority === "tarkea")) || (a.due || "9999").localeCompare(b.due || "9999") || (a.createdAt || "").localeCompare(b.createdAt || ""));
+    ((b.priority === "tarkea") - (a.priority === "tarkea")) || (F("todoDue") ? (a.due || "9999").localeCompare(b.due || "9999") : 0) || (a.createdAt || "").localeCompare(b.createdAt || ""));
 }
 function vTodos() {
   const open = openTodos();
@@ -656,7 +748,7 @@ function vTodos() {
 function todoRow(t) {
   const chips = [];
   if (t.priority === "tarkea") chips.push(chip("Tärkeä", "warn"));
-  if (t.due && !t.done) chips.push(chip(fmtDate(t.due), t.due < today() ? "bad" : ""));
+  if (F("todoDue") && t.due && !t.done) chips.push(chip(fmtDate(t.due), t.due < today() ? "bad" : ""));
   if (t.assignee) chips.push(chip("👤 " + esc(t.assignee)));
   return `<div class="item ${t.done ? "is-done" : ""}"><div class="item-row">
     <button class="check ${t.done ? "on" : ""}" data-action="toggleTodo" data-id="${t.id}" aria-label="${t.done ? "Merkitse tekemättömäksi" : "Merkitse tehdyksi"}"></button>
@@ -809,7 +901,7 @@ function vKulut() {
     if (!latest[k] || (p.date || "") > (latest[k].date || "")) latest[k] = p;
   });
   const rec = Object.values(latest);
-  if (rec.length) {
+  if (rec.length && F("payRecurring")) {
     const yearly = p => num(p.amount) * 12 / RECUR_MONTHS[p.recurrence];
     h += secH("Toistuvat kulut – arvio vuodessa") + `<div class="card"><table class="tbl"><tbody>${rec.sort((a, b) => yearly(b) - yearly(a)).map(p => `<tr><td>${esc(p.name)}<div class="muted small">${RECUR.find(r => r[0] === p.recurrence)[1]}</div></td><td class="r">${eur(yearly(p))}</td></tr>`).join("")}<tr class="sum"><td>Yhteensä</td><td class="r">${eur(rec.reduce((s, p) => s + yearly(p), 0))}</td></tr></tbody></table></div>`;
   }
@@ -822,7 +914,7 @@ function payRow(p) {
     <button class="check ${p.paid ? "on" : ""}" data-action="togglePaid" data-id="${p.id}" aria-label="Merkitse maksetuksi"></button>
     <div class="item-main" data-action="editPay" data-id="${p.id}">
       <div class="item-title row-between"><span>${esc(p.name)}</span><span class="amt">${eur(p.amount)}</span></div>
-      <div class="chips">${chip(esc(p.category || "Muu"))}${r && p.recurrence !== "kerta" ? chip("↻ " + r[1]) : ""}${p.date ? chip((p.paid ? "" : "Eräpäivä ") + fmtDate(p.date), !p.paid && p.date < t ? "bad" : "") : ""}${p.payer ? chip("👤 " + esc(p.payer)) : ""}${p.photos?.length ? chip("📎") : ""}</div>
+      <div class="chips">${chip(esc(p.category || "Muu"))}${F("payRecurring") && r && p.recurrence !== "kerta" ? chip("↻ " + r[1]) : ""}${p.date ? (F("payDue") ? chip((p.paid ? "" : "Eräpäivä ") + fmtDate(p.date), !p.paid && p.date < t ? "bad" : "") : chip(fmtDate(p.date))) : ""}${p.payer ? chip("👤 " + esc(p.payer)) : ""}${p.photos?.length ? chip("📎") : ""}</div>
       ${p.paid && p.paidByName ? `<div class="by">✓ Merkitsi maksetuksi ${esc(p.paidByName)}</div>` : ""}
     </div></div></div>`;
 }
@@ -837,7 +929,7 @@ function vLisaa() {
     ["kayttajat", "👥", isAdmin() ? "Käyttäjät ja PIN-koodit" : "Käyttäjät", noPin ? `${noPin} käyttäjältä puuttuu PIN` : S.users.join(", ")],
     ["profiili", "👤", "Oma profiili", (isAdmin() ? "👑 " : "") + S.me.name]
   ];
-  if (isAdmin()) items.push(["ulkoasu", "🎨", "Ulkoasu", "Värit, muodot, tekstit ja etusivu – näkyy kaikille"]);
+  if (isAdmin()) items.push(["ulkoasu", "🎨", "Ulkoasu ja ominaisuudet", "Värit, tekstit, etusivu ja valinnaiset toiminnot"]);
   return `<div class="menu">${items.map(([v, ic, t, d]) => `<a class="menu-item" href="#${v}"><span class="menu-ic">${ic}</span><span class="menu-t"><b>${t}</b><small class="${v === "kayttajat" && noPin ? "warn" : ""}">${esc(d)}</small></span><span class="chev">›</span></a>`).join("")}</div>
     <button class="btn ghost block" data-action="switchUser">Vaihda käyttäjää</button>`;
 }
@@ -858,8 +950,6 @@ const INFO_FIELDS = [
   { name: "wifiPass", label: "Wifi-salasana" },
   { name: "alarmCode", label: "Hälytin- tai lukkokoodi" },
   { type: "heading", label: "Muuta" },
-  { name: "sweepInterval", label: "Nuohousväli vuosina", type: "number", placeholder: "3" },
-  { type: "note", label: "Vapaa-ajan asunnoissa nuohousväli on tyypillisesti pidempi kuin vakituisissa asunnoissa. Tarkista oman alueesi pelastuslaitokselta." },
   { name: "other", label: "Muuta tärkeää", type: "textarea" }
 ];
 function vPerustiedot() {
@@ -1015,7 +1105,8 @@ function updateSaveBar() {
   const bar = $("#t-savebar"); if (!bar) return;
   const [d, txt] = saveBarState();
   bar.classList.toggle("dirty", d); bar.querySelector(".savebar-t").textContent = txt;
-  bar.querySelectorAll("button").forEach(b => b.disabled = !d);
+  bar.querySelectorAll('[data-action="themeSave"],[data-action="themeUndo"]').forEach(b => b.disabled = !d);
+  const c = bar.querySelector('[data-action="homeCancel"]'); if (c) c.textContent = d ? "Peru" : "Sulje";
 }
 
 function vUlkoasu() {
@@ -1065,25 +1156,17 @@ function vUlkoasu() {
   h += secH("Tekstisisältö") + `<div class="card t-card">
     ${tText("text.appName", "Sovelluksen nimi", CABIN_NAME)}
     ${tText("text.tagline", "Alaotsikko kirjautumissivulla", DEFAULT_THEME.text.tagline)}
-    ${tText("text.greeting", "Tervehdys etusivulla", DEFAULT_THEME.text.greeting)}
-    <p class="form-note">{nimi} korvautuu käyttäjän nimellä. Tyhjä = ei tervehdystä.</p>
-    ${tText("text.notice", "Tiedote kaikille etusivulle", "esim. Laituri korjataan 15.6. – älä käytä venettä ennen sitä.", 3)}
-    <p class="form-note">Tyhjä tiedote ei näy etusivulla.</p>
     <h3 class="form-h">Alavalikon nimet</h3>
     <div class="t-nav">${NAV.map(([k, l]) => tText(`text.nav.${k}`, l, l)).join("")}</div>
   </div>`;
 
+  // Ominaisuudet
+  h += secH("Ominaisuudet") + `<div class="card t-card"><p class="form-note">Valinnaiset aikataulutoiminnot. Pois päältä ollessaan ne eivät näy kenellekään, mutta jo tallennetut tiedot säilyvät.</p>
+    ${FEATURES.map(([k, l, d]) => `${tCheck("features." + k, l)}<p class="form-note t-feat">${esc(d)}</p>`).join("")}</div>`;
+
   // Etusivu
-  const order = D.home.order;
-  h += secH("Etusivun kortit") + `<p class="form-note">Valitse mitkä kortit näkyvät etusivulla, missä järjestyksessä ja millä otsikolla.</p>
-    <div class="list">${order.map((k, i) => {
-      const [, def, titled] = HOME_CARDS.find(c => c[0] === k);
-      return `<div class="item"><div class="item-row t-home">
-        <input type="checkbox" class="t-vis" id="${tId("home.hidden." + k)}" data-tk="home.hidden.${k}" data-inv="1" ${D.home.hidden[k] ? "" : "checked"} aria-label="Näytä ${esc(def)}">
-        <div class="item-main">${titled ? `<input class="t-title" id="${tId("home.titles." + k)}" data-tk="home.titles.${k}" value="${esc(D.home.titles[k] || "")}" placeholder="${esc(def)}" autocomplete="off">` : `<div class="item-title">${esc(def)}</div>`}</div>
-        <span class="order-btns"><button class="icon-btn" data-action="themeMove" data-key="${k}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="themeMove" data-key="${k}" data-dir="1" ${i === order.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span>
-      </div></div>`;
-    }).join("")}</div>`;
+  h += secH("Etusivu") + `<div class="card"><p>Etusivun korttien järjestys, koko, otsikot, tervehdys ja tiedote muokataan suoraan etusivulla, jotta näet heti miltä se näyttää.</p>
+    <div class="row-btns"><button class="btn" data-action="homeEdit">✎ Muokkaa etusivua</button></div></div>`;
 
   h += `<button class="btn danger ghost block" data-action="themeReset">Palauta oletusulkoasu</button>`;
   const [d, txt] = saveBarState();
@@ -1121,7 +1204,7 @@ const VIEWS = {
   korjaukset: { title: () => "Korjaussuunnitelma", render: vKorjaukset },
   kayttajat: { title: () => "Käyttäjät", render: vKayttajat },
   profiili: { title: () => "Oma profiili", render: vProfiili },
-  ulkoasu: { title: () => "Ulkoasu", render: vUlkoasu }
+  ulkoasu: { title: () => "Ulkoasu ja ominaisuudet", render: vUlkoasu }
 };
 
 // ---------- Renderöinti ----------
@@ -1158,10 +1241,12 @@ function routeFromHash() { const h = location.hash.slice(1); S.view = VIEWS[h] ?
 window.addEventListener("hashchange", () => {
   const prev = S.view;
   routeFromHash();
-  if (prev === "ulkoasu" && S.view !== "ulkoasu" && S.themeDraft) {
-    if (themeDirty() && !confirm("Ulkoasun muutoksia ei ole tallennettu. Hylätäänkö ne?")) { location.hash = "ulkoasu"; return; }
+  const editing = prev === "ulkoasu" ? !S.homeEdit : (prev === "koti" && S.homeEdit);
+  if (editing && S.view !== prev && S.themeDraft) {
+    if (themeDirty() && !confirm("Muutoksia ei ole tallennettu. Hylätäänkö ne?")) { location.hash = prev; return; }
     discardThemeDraft();
   }
+  previewTheme();
   S.editOrder = false; window.scrollTo(0, 0); render();
 });
 
@@ -1193,7 +1278,7 @@ const ACTIONS = {
         { name: "text", label: "Tehtävä", required: true },
         { name: "notes", label: "Lisätiedot", type: "textarea" },
         { name: "priority", label: "Tärkeys", type: "select", options: [["normaali", "Normaali"], ["tarkea", "Tärkeä"]] },
-        { name: "due", label: "Määräaika", type: "date" },
+        ...(F("todoDue") ? [{ name: "due", label: "Määräaika", type: "date" }] : []),
         { name: "assignee", label: "Tekijä", type: "select", options: () => [["", "Ei määritelty"], ...memberNames()] }
       ],
       onSubmit: v => save("todos", v, t.id), onDelete: () => remove("todos", t.id)
@@ -1268,13 +1353,13 @@ const ACTIONS = {
 
   // Kulut
   kulutYear: d => { S.kulutYear = Number(d.year); render(); },
-  addPay: () => openForm({ title: "Uusi maksu", fields: PAY_FIELDS, onSubmit: v => { save("payments", v); toast("Tallennettu"); } }),
-  editPay: d => { const p = findIn("payments", d.id); if (!p) return; openForm({ title: "Muokkaa maksua", fields: PAY_FIELDS, values: p, onSubmit: v => save("payments", v, p.id), onDelete: () => remove("payments", p.id) }); },
+  addPay: () => openForm({ title: "Uusi maksu", fields: payFields(), onSubmit: v => { save("payments", v); toast("Tallennettu"); } }),
+  editPay: d => { const p = findIn("payments", d.id); if (!p) return; openForm({ title: "Muokkaa maksua", fields: payFields(), values: p, onSubmit: v => save("payments", v, p.id), onDelete: () => remove("payments", p.id) }); },
   togglePaid: d => {
     const p = findIn("payments", d.id); if (!p) return;
     const nowPaid = !p.paid;
     patch("payments", p.id, { paid: nowPaid, paidByName: nowPaid ? S.me.name : null, paidAt: nowPaid ? nowIso() : null });
-    if (nowPaid && RECUR_MONTHS[p.recurrence]) {
+    if (nowPaid && F("payRecurring") && RECUR_MONTHS[p.recurrence]) {
       const nextDate = addMonths(p.date || today(), RECUR_MONTHS[p.recurrence]);
       const exists = list("payments").some(x => x.id !== p.id && x.name === p.name && x.date === nextDate);
       if (!exists && confirm(`Luodaanko seuraava erä "${p.name}" eräpäivälle ${fmtDate(nextDate)}?`)) {
@@ -1357,11 +1442,30 @@ const ACTIONS = {
     S.themeDraft.light = { ...p.light }; S.themeDraft.dark = { ...p.dark };
     previewTheme(); render(); toast(`Teema ${p.name} valittu – muista tallentaa`);
   },
-  themeMove: d => {
+  homeEdit: () => {
+    if (!isAdmin()) return;
+    if (S.view === "ulkoasu" && themeDirty()) { toast("Tallenna tai peru ensin ulkoasun muutokset", true); return; }
+    S.themeDraft = structuredClone(S.theme); S.homeEdit = true;
+    if (S.view !== "koti") location.hash = "koti"; else { previewTheme(); render(); }
+  },
+  homeMove: d => {
     if (!S.themeDraft) return;
-    const o = S.themeDraft.home.order; const i = o.indexOf(d.key), j = i + Number(d.dir);
-    if (i < 0 || j < 0 || j >= o.length) return;
-    [o[i], o[j]] = [o[j], o[i]]; render();
+    const D = S.themeDraft.home, o = D.order;
+    const vis = o.filter(k => !D.hidden[k]); const i = vis.indexOf(d.key), j = i + Number(d.dir);
+    if (i < 0 || j < 0 || j >= vis.length) return;
+    const a = o.indexOf(vis[i]), b = o.indexOf(vis[j]);
+    [o[a], o[b]] = [o[b], o[a]]; render();
+  },
+  homeSize: d => { if (!S.themeDraft) return; S.themeDraft.home.size[d.key] = d.size; render(); },
+  homeHide: d => { if (!S.themeDraft) return; S.themeDraft.home.hidden[d.key] = true; render(); },
+  homeShow: d => { if (!S.themeDraft) return; delete S.themeDraft.home.hidden[d.key]; render(); },
+  homeDefaults: () => {
+    if (!S.themeDraft || !confirm("Palautetaanko etusivun oletusasettelu (järjestys, koot, otsikot)?")) return;
+    S.themeDraft.home = structuredClone(DEFAULT_THEME.home); render();
+  },
+  homeCancel: () => {
+    if (themeDirty() && !confirm("Hylätäänkö etusivun muutokset?")) return;
+    discardThemeDraft(); render();
   },
   themeReset: () => {
     if (!S.themeDraft || !confirm("Palautetaanko oletusulkoasu? Muutos tulee kaikille vasta, kun painat Tallenna kaikille.")) return;
@@ -1373,7 +1477,8 @@ const ACTIONS = {
     const data = mergeTheme(S.themeDraft);
     const at = nowIso();
     setDoc(THEME_DOC(), { ...data, updatedByName: S.me.name, updatedAt: at }).catch(fail);
-    S.theme = data; S.themeDraft = structuredClone(data); S.themeMeta = { by: S.me.name, at };
+    S.theme = data; S.themeMeta = { by: S.me.name, at };
+    if (S.homeEdit) { S.homeEdit = false; S.themeDraft = null; } else S.themeDraft = structuredClone(data);
     cacheTheme(); previewTheme(); render();
     toast("Ulkoasu tallennettu – näkyy kaikille");
   },
@@ -1433,6 +1538,9 @@ const PAY_FIELDS = [
   { name: "notes", label: "Lisätiedot", type: "textarea", rows: 2, placeholder: "esim. viitenumero, sopimusnumero" },
   { name: "photos", label: "Lasku / kuitti", type: "photos" }
 ];
+const payFields = () => PAY_FIELDS
+  .filter(f => f.name !== "recurrence" || F("payRecurring"))
+  .map(f => f.name === "date" && !F("payDue") ? { ...f, label: "Päivämäärä" } : f);
 const PLACE_FIELDS = [
   { name: "title", label: "Nimi", required: true, placeholder: "esim. Sähkökaappi" },
   { name: "description", label: "Kuvaus ja ohje", type: "textarea", rows: 4, placeholder: "Missä se on ja miten toimitaan" },
