@@ -1,3 +1,14 @@
+import { DARK_STYLES } from "../theme.js";
+import { LOG_FIELDS } from "./huolto.js";
+import { INV_FIELDS, PAY_FIELDS, REPAIR_FIELDS, CONTACT_FIELDS, BOOKING_FIELDS } from "../actions.js";
+import { DEVICE_FIELDS } from "./laitteet.js";
+import { photoMode } from "../core.js";
+// Lomakkeet, joiden kenttiä admin voi piilottaa: [avain, nimi, kentät]
+const FORM_DEFS = () => [
+  ["nuohous", "Nuohous", LOG_FIELDS.nuohous], ["puut", "Puutilaus", LOG_FIELDS.puut], ["huolto", "Huoltotyö", LOG_FIELDS.huolto],
+  ["tavara", "Tavara", INV_FIELDS], ["maksu", "Maksu", PAY_FIELDS], ["varaus", "Varaus", BOOKING_FIELDS],
+  ["laite", "Laite", DEVICE_FIELDS], ["korjaus", "Korjaus", REPAIR_FIELDS], ["yhteystieto", "Yhteystieto", CONTACT_FIELDS]
+];
 import { versionsSection, iconSection, loadThemeVersions } from "./teemat.js";
 import { MONTHS } from "../core.js";
 import { $, ADMIN_NAME, CABIN_NAME, ICONS, NAV_MAX, S, SECTIONS, chip, colorFor, esc, fmtDT, fmtNum, initials, isAdmin, list, num, secH, seg } from "../core.js";
@@ -33,7 +44,7 @@ export function vKayttajat() {
   h += `<div class="list">${S.users.map((u, i) => {
     const self = u === S.me.name;
     const badges = [u === ADMIN_NAME ? chip("👑 Pääkäyttäjä", "strong") : "", S.pins[u] ? chip("✓ PIN asetettu") : chip("PIN puuttuu", "warn")].join("");
-    const btns = admin ? `<button class="btn small" data-action="setPin" data-name="${esc(u)}">${S.pins[u] ? "Vaihda PIN" : "Aseta PIN"}</button>${u !== ADMIN_NAME ? `<button class="btn small ghost" data-action="renameUser" data-name="${esc(u)}">Nimeä</button><button class="btn small ghost" data-action="removeUser" data-name="${esc(u)}">Poista</button>` : ""}<span class="order-btns"><button class="icon-btn" data-action="moveUser" data-name="${esc(u)}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="moveUser" data-name="${esc(u)}" data-dir="1" ${i === S.users.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span>` : "";
+    const btns = admin ? `${!self ? `<button class="btn small ghost" data-action="previewAs" data-name="${esc(u)}" title="Katso sovellusta tämän käyttäjän silmin">👁 Katso</button>` : ""}<button class="btn small" data-action="setPin" data-name="${esc(u)}">${S.pins[u] ? "Vaihda PIN" : "Aseta PIN"}</button>${u !== ADMIN_NAME ? `<button class="btn small ghost" data-action="renameUser" data-name="${esc(u)}">Nimeä</button><button class="btn small ghost" data-action="removeUser" data-name="${esc(u)}">Poista</button>` : ""}<span class="order-btns"><button class="icon-btn" data-action="moveUser" data-name="${esc(u)}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="moveUser" data-name="${esc(u)}" data-dir="1" ${i === S.users.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span>` : "";
     return `<div class="item"><div class="item-row"><span class="avatar" style="background:${colorFor(u)}">${esc(initials(u))}</span><div class="item-main"><div class="item-title">${esc(u)}${self ? " (sinä)" : ""}</div><div class="chips">${badges}</div>${btns ? `<div class="row-btns">${btns}</div>` : ""}</div></div></div>`;
   }).join("")}</div>`;
   if (admin) h += `<button class="btn primary block" data-action="addUser">+ Lisää käyttäjä</button>`;
@@ -42,7 +53,11 @@ export function vKayttajat() {
 
 // ---------- Profiili ----------
 export function vProfiili() {
-  return backLink() + `<div class="card"><div class="card-label">Oma profiili</div>
+  const pm = photoMode();
+  const photoCard = `<div class="card"><div class="card-label">Kuvat tällä laitteella</div>
+    <div class="seg">${[["lazy", "Kun niitä katsotaan"], ["all", "Kaikki etukäteen"]].map(([k, l]) => `<button data-action="setPhotoMode" data-v="${k}" class="${k === pm ? "on" : ""}">${l}</button>`).join("")}</div>
+    <p class="form-note">${pm === "all" ? "Kaikki kuvat ladataan laitteelle, joten ne näkyvät mökillä ilman verkkoa. Käyttää enemmän dataa ja hidastaa käynnistystä." : "Kuva ladataan vasta, kun se tulee näkyviin. Nopeampi ja säästää dataa. Ilman verkkoa näkyvät vain kerran katsotut kuvat – valitse \"Kaikki etukäteen\" ennen mökille lähtöä, jos verkko siellä on huono."}</p></div>`;
+  return backLink() + photoCard + `<div class="card"><div class="card-label">Oma profiili</div>
     <div class="row-between"><div class="big">${isAdmin() ? "👑 " : ""}${esc(S.me.name)}</div><span class="avatar" style="background:${colorFor(S.me.name)}">${esc(initials(S.me.name))}</span></div>
     <div class="dl-row"><dt>Rooli</dt><dd>${isAdmin() ? "Pääkäyttäjä" : "Käyttäjä"}</dd></div>
     <div class="row-btns"><button class="btn primary" data-action="setPin" data-name="${esc(S.me.name)}">Vaihda oma PIN</button><button class="btn ghost" data-action="switchUser">Vaihda käyttäjää</button></div></div>
@@ -57,9 +72,13 @@ export function vProfiili() {
 // ---------- Ulkoasu (vain pääkäyttäjä) ----------
 export const tPath = (o, p) => p.split(".").reduce((a, k) => a?.[k], o);
 export function tSet(o, path, v) {
-  const ks = path.split("."); const last = ks.pop(); let a = o;
-  for (const k of ks) a = (a[k] ??= {});
-  if (path.startsWith("home.") && (v === "" || v === false)) delete a[last]; else a[last] = v;
+  const ks = path.split("."); const last = ks.pop(); let a = o; const chain = [];
+  for (const k of ks) { chain.push([a, k]); a = (a[k] ??= {}); }
+  if ((path.startsWith("home.") || path.startsWith("fields.")) && (v === "" || v === false)) {
+    delete a[last];
+    // Poistetaan tyhjäksi jäänyt lomakekohtainen olio, jotta "ei muutoksia" tunnistuu oikein
+    if (path.startsWith("fields.") && chain.length >= 2 && !Object.keys(a).length) delete chain[chain.length - 1][0][chain[chain.length - 1][1]];
+  } else a[last] = v;
 }
 export const tId = p => "tk-" + p.replace(/\./g, "-");
 export const tColor = (p, label) => { const v = tPath(S.themeDraft, p); return `<label class="t-row"><span>${esc(label)}</span><span class="t-color"><code data-tv="${p}">${esc(v)}</code><input type="color" id="${tId(p)}" data-tk="${p}" value="${esc(v)}"></span></label>`; };
@@ -102,6 +121,7 @@ export function vUlkoasu() {
   h += secH("Värit") + `<div class="card t-card">
     ${tSelect("mode", "Väritila", [["auto", "Automaattinen (laitteen mukaan)"], ["light", "Aina vaalea"], ["dark", "Aina tumma"]])}
     <div class="seg">${[["light", "☀️ Vaalea paletti"], ["dark", "🌙 Tumma paletti"]].map(([k, l]) => `<button data-action="themePal" data-pal="${k}" class="${k === pal ? "on" : ""}">${l}</button>`).join("")}</div>
+    <div class="dark-styles"><span class="form-note">Tumman tilan tausta:</span>${Object.entries(DARK_STYLES).map(([k, st]) => `<button class="preset dark-preset" data-action="themeDarkStyle" data-v="${k}"><span class="sw"><i style="background:${st.bg}"></i><i style="background:${st.card}"></i><i style="background:${st.line}"></i></span>${esc(st.name)}</button>`).join("")}</div>
     <p class="form-note">Muokkaat nyt ${pal === "light" ? "vaaleaa" : "tummaa"} palettia, ja esikatselu näyttää sen.</p>
     <div class="card t-preview"><div class="card-label">Esikatselu</div><div class="big">Iso otsikko</div><p>Tavallista tekstiä ja <span class="muted">himmeää tekstiä</span>.</p>
       <div class="chips">${chip("Merkki")}${chip("OK", "ok-chip")}${chip("Vähissä", "warn")}${chip("Myöhässä", "bad")}</div>
@@ -139,6 +159,18 @@ export function vUlkoasu() {
   </div>`;
 
   h += iconSection();
+
+  // Lomakkeiden kentät (idea 169)
+  const forms = FORM_DEFS();
+  const fk = forms.some(f => f[0] === S.fieldsForm) ? S.fieldsForm : forms[0][0];
+  const [, fLabel, fFields] = forms.find(f => f[0] === fk);
+  const hid = D.fields?.[fk] || {};
+  h += secH("Lomakkeiden kentät") + `<p class="form-note">Valitse, mitkä kentät näkyvät lomakkeissa kaikille. Pakollisia kenttiä ei voi piilottaa. Piilotetun kentän aiemmin tallennetut tiedot säilyvät.</p>
+    <div class="chips">${forms.map(([k, l]) => `<button class="chip-btn ${k === fk ? "on" : ""}" data-action="fieldsForm" data-f="${k}">${esc(l)}${Object.keys(D.fields?.[k] || {}).length ? ` (${Object.keys(D.fields[k]).length} piilossa)` : ""}</button>`).join("")}</div>
+    <div class="card t-card"><div class="card-label">${esc(fLabel)}</div>
+    ${fFields.filter(f => f.name && f.type !== "heading" && f.type !== "note").map(f => f.required
+      ? `<label class="fld-check t-dim"><input type="checkbox" checked disabled><span>${esc(f.label)} <small>(pakollinen)</small></span></label>`
+      : tCheck(`fields.${fk}.${f.name}`, f.label, true)).join("")}</div>`;
 
   // Alavalikko
   const inNav = D.navItems, rest = SECTIONS.filter(x => !inNav.includes(x[0]));

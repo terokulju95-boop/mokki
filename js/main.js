@@ -1,3 +1,4 @@
+import { photoMode } from "./core.js";
 import { iconSrc, listenIcon } from "./views/teemat.js";
 import { vLaitteet } from "./views/laitteet.js";
 // Sovelluksen käynnistys: näkymät, renderöinti, reititys ja kirjautuminen
@@ -223,8 +224,9 @@ export function startData() {
       if (changed) scheduleRender();
     }, err => console.error(c, err)));
   });
-  // Kuvat ladataan välimuistiin, jotta ne näkyvät mökillä myös ilman verkkoa
-  S.unsubs.push(onSnapshot(collection(db, "photos"), snap => {
+  // "Kaikki etukäteen" -tilassa kuvat ladataan välimuistiin, jotta ne näkyvät mökillä myös ilman verkkoa.
+  // Oletuksena kuvat haetaan vasta, kun ne tulevat näkyviin (core.hydratePhotos).
+  if (photoMode() === "all") S.unsubs.push(onSnapshot(collection(db, "photos"), snap => {
     snap.docs.forEach(d => photoCache.set(d.id, d.data().data));
     hydratePhotos($("#view"));
   }, err => console.error("photos", err)));

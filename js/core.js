@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, writeBatch, deleteField
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, getDocs, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, LOGIN_EMAIL, ADMIN_NAME, DEFAULT_USERS, CABIN_NAME } from "../firebase-config.js";
 
@@ -171,14 +171,17 @@ export function clean(o) { const r = {}; for (const [k, v] of Object.entries(o))
 // ---------- Tallennus (ei odoteta palvelinta → toimii offline) ----------
 export function meta() { return { createdByName: S.me.name, createdAt: nowIso() }; }
 export function fail(e) { console.error(e); toast("Tallennus epäonnistui: " + (e.code || e.message), true); }
+// Esikatselutilassa (admin katsoo sovellusta toisena käyttäjänä) mitään ei tallenneta
+const readOnlyBlock = () => { if (!S.readOnly) return false; toast("Esikatselutila – muutoksia ei tallenneta", true); return true; };
 export function save(col, data, id) {
+  if (readOnlyBlock()) return null;
   const ref = id ? doc(db, col, id) : doc(collection(db, col));
   const payload = id ? { ...clean(data), updatedByName: S.me.name, updatedAt: nowIso() } : { ...clean(data), ...meta() };
   (id ? setDoc(ref, payload, { merge: true }) : setDoc(ref, payload)).catch(fail);
   return ref.id;
 }
-export function patch(col, id, data) { updateDoc(doc(db, col, id), data).catch(fail); }
-export function remove(col, id) { deleteDoc(doc(db, col, id)).catch(fail); }
+export function patch(col, id, data) { if (readOnlyBlock()) return; updateDoc(doc(db, col, id), data).catch(fail); }
+export function remove(col, id) { if (readOnlyBlock()) return; deleteDoc(doc(db, col, id)).catch(fail); }
 
 // ---------- Kuvat ----------
 export function newPhoto(dataUrl) {
@@ -189,15 +192,31 @@ export function newPhoto(dataUrl) {
 }
 export function delPhoto(id) { photoCache.delete(id); deleteDoc(doc(db, "photos", id)).catch(() => {}); }
 export function delPhotos(ids) { (ids || []).forEach(delPhoto); }
+// Kuvien lataustapa tällä laitteella (idea 182): "lazy" = vasta kun kuva tulee näkyviin,
+// "all" = kaikki kuvat etukäteen, jotta ne näkyvät mökillä ilman verkkoa.
+const PHOTO_MODE_KEY = "mokki_photo_mode";
+export const photoMode = () => { try { return localStorage.getItem(PHOTO_MODE_KEY) === "all" ? "all" : "lazy"; } catch { return "lazy"; } };
+export function setPhotoMode(m) { try { localStorage.setItem(PHOTO_MODE_KEY, m); } catch { } }
+async function loadPhoto(img) {
+  const id = img.dataset.photo;
+  if (photoCache.has(id)) { img.src = photoCache.get(id); return; }
+  img.classList.add("loading");
+  try {
+    const s = await getDoc(doc(db, "photos", id));
+    if (s.exists()) { photoCache.set(id, s.data().data); img.src = s.data().data; }
+    else { img.classList.add("missing"); img.alt = "Kuva puuttuu"; }
+  } catch { img.classList.add("missing"); img.alt = "Kuva ei saatavilla"; }
+  img.classList.remove("loading");
+}
+const photoObserver = "IntersectionObserver" in window
+  ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { photoObserver.unobserve(e.target); loadPhoto(e.target); } }), { rootMargin: "300px" })
+  : null;
 export function hydratePhotos(root = document) {
-  root.querySelectorAll("img[data-photo]").forEach(async img => {
+  root.querySelectorAll("img[data-photo]").forEach(img => {
     if (img.getAttribute("src")) return;
     const id = img.dataset.photo;
     if (photoCache.has(id)) { img.src = photoCache.get(id); return; }
-    try {
-      const s = await getDoc(doc(db, "photos", id));
-      if (s.exists()) { photoCache.set(id, s.data().data); img.src = s.data().data; }
-    } catch { img.classList.add("missing"); img.alt = "Kuva ei saatavilla"; }
+    photoObserver ? photoObserver.observe(img) : loadPhoto(img);
   });
 }
 export function compressImage(file, maxDim = 1400) {
@@ -254,7 +273,14 @@ export function fieldHtml(f, v) {
     }
     case "checkbox": return `<label class="fld-check"><input type="checkbox" name="${f.name}" ${v ? "checked" : ""}><span>${esc(f.label)}</span></label>`;
     case "photos": return `<div class="fld" data-photos="${f.name}"><span>${esc(f.label)}</span><div class="thumbs edit"></div><label class="btn small ghost file-btn">📷 Lisää kuva<input type="file" accept="image/*" multiple data-pfield="${f.name}" hidden></label></div>`;
-    case "number": return `<label class="fld"><span>${esc(f.label)}</span><input name="${f.name}" type="text" inputmode="decimal" value="${v === null || v === undefined || v === "" ? "" : esc(String(v).replace(".", ","))}" ${req} ${ph}></label>`;
+    case "number": {
+      // Rahakentät (otsikossa €): numeronäppäimistö, € -merkki ja muotoilu 1 250,00 (idea 81)
+      const money = f.money || /€/.test(f.label);
+      const empty = v === null || v === undefined || v === "";
+      const val = empty ? "" : money ? fmtMoney(v) : esc(String(v).replace(".", ","));
+      const input = `<input name="${f.name}" type="text" inputmode="decimal" value="${val}" ${req} ${money ? 'data-money="1" placeholder="0,00"' : ph}>`;
+      return `<label class="fld"><span>${esc(money ? f.label.replace(/\s*\(€\)/, "") : f.label)}</span>${money ? `<span class="money">${input}<i>€</i></span>` : input}</label>`;
+    }
     default: {
       const listId = f.list ? `dl_${f.name}` : "";
       return `<label class="fld"><span>${esc(f.label)}</span><input name="${f.name}" type="${f.type || "text"}" value="${esc(v ?? "")}" ${req} ${ph} ${f.list ? `list="${listId}"` : ""} autocomplete="off"></label>${f.list ? `<datalist id="${listId}">${f.list.map(o => `<option value="${esc(o)}">`).join("")}</datalist>` : ""}`;
@@ -262,7 +288,10 @@ export function fieldHtml(f, v) {
   }
 }
 
-export function openForm({ title, fields, values = {}, onSubmit, onDelete, submitLabel = "Tallenna" }) {
+// Lomakkeen kenttien suodatin (idea 169): theme.js asettaa funktion, joka piilottaa adminin piilottamat kentät
+export const formFilter = { fn: (key, fields) => fields };
+export function openForm({ title, fields, values = {}, onSubmit, onDelete, submitLabel = "Tallenna", formKey }) {
+  if (formKey) fields = formFilter.fn(formKey, fields);
   const m = $("#modal");
   const photoState = {};
   const added = new Set();
@@ -356,4 +385,13 @@ export const details = (id, summary, inner) => `<details id="${id}" class="more"
 export const chip = (t, cls = "") => `<span class="chip ${cls}">${t}</span>`;
 
 
-export { initializeApp, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, writeBatch, deleteField, firebaseConfig, LOGIN_EMAIL, ADMIN_NAME, DEFAULT_USERS, CABIN_NAME };
+export { initializeApp, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, getDocs, writeBatch, deleteField, firebaseConfig, LOGIN_EMAIL, ADMIN_NAME, DEFAULT_USERS, CABIN_NAME };
+
+export const fmtMoney = v => (Number(v) || 0).toLocaleString("fi-FI", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Rahakenttä muotoillaan, kun siitä poistutaan: "1250" → "1 250,00"
+document.addEventListener("focusout", e => {
+  const el = e.target;
+  if (!el?.dataset?.money || !el.value.trim()) return;
+  const n = num(el.value);
+  if (isFinite(n)) el.value = fmtMoney(n);
+});

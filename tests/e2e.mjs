@@ -30,7 +30,7 @@ const SEED = {
   logs: {
     l1: { type: "nuohous", date: ago(400), doer: "nuohooja", provider: "Nuohous Oy", cost: 120, createdByName: "Tero" },
     l2: { type: "puut", date: ago(60), amount: 4, unit: "irto-m³", cost: 300, createdByName: "Timo" },
-    l3: { type: "huolto", title: "Kiukaan kivet vaihdettu", date: ago(20), category: "Sauna", createdByName: "Tero" }
+    l3: { type: "huolto", title: "Kiukaan kivet vaihdettu", date: ago(20), category: "Sauna", createdByName: "Tero", photos: ["ph1"] }
   },
   bookings: { b1: { who: "Timo", start: ago(-5), end: ago(-8) } },
   todos: { t1: { text: "Vaihda saunan lauteet", due: ago(3), done: false, createdByName: "Tero", createdAt: "x" } },
@@ -38,6 +38,7 @@ const SEED = {
   shopping: { s1: { text: "WC-paperia", done: false, createdByName: "Timo", list: "vie" } },
   inventory: { i1: { name: "Kaasupullo", category: "Polttoaineet & sytykkeet", status: "ok" }, i2: { name: "Tiskiaine", category: "Siivous & hygienia", status: "vahissa", qty: "puoli pulloa" } },
   checkItems: { c1: { title: "Vesipumppu irti", season: "talvi", order: 10 }, c2: { title: "Vedet pois putkistosta", season: "talvi", order: 20, instructions: "Venttiilit kellarissa" }, c3: { title: "Sähköt päälle", season: "kevat", order: 10 } },
+  photos: { ph1: { data: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" , createdByName: "Tero" }, ph2: { data: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" , createdByName: "Timo" } },
   seasonRuns: { r0: { season: "talvi", label: "Talviteloille 2024", startedAt: "2024-09-10T10:00:00Z", startedByName: "Tero", completed: { c1: { title: "x", byName: "Tero", at: "2024-09-10T10:00:00Z" } } } }
 };
 

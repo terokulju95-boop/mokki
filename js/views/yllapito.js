@@ -2,7 +2,7 @@
 //  Ylläpito (vain pääkäyttäjä): varmuuskopio, palautus,
 //  tietokannan koko ja vanhojen kirjausten arkistointi.
 // =============================================================
-import { COLS, S, db, doc, collection, writeBatch, setDoc, getDoc, photoCache, toast, fail, nowIso, ymd, fmtDT, fmtNum, esc, isAdmin, secH, list } from "../core.js";
+import { COLS, S, db, doc, collection, writeBatch, setDoc, getDoc, getDocs, deleteDoc, updateDoc, photoCache, toast, fail, nowIso, ymd, fmtDT, fmtNum, esc, isAdmin, secH, list } from "../core.js";
 import { backLink, T } from "../theme.js";
 import { render } from "../main.js";
 import { ACTIONS } from "../actions.js";
@@ -22,8 +22,9 @@ const mb = b => b < 1048576 ? Math.max(1, Math.round(b / 1024)).toLocaleString("
 
 export function dbStats() {
   const rows = COLS.map(c => ({ c, n: list(c).length, bytes: list(c).reduce((s, d) => s + sizeOf(d), 0) }));
-  const photoBytes = [...photoCache.values()].reduce((s, v) => s + (v?.length || 0), 0);
-  rows.push({ c: "photos", n: photoCache.size, bytes: photoBytes });
+  // Kuvien koko: tarkka luku kuvien tarkistuksen jälkeen, muuten tälle laitteelle ladatut
+  const photoBytes = S.photoScan ? S.photoScan.total : [...photoCache.values()].reduce((s, v) => s + (v?.length || 0), 0);
+  rows.push({ c: "photos", n: S.photoScan ? S.photoScan.items.length : photoCache.size, bytes: photoBytes });
   const total = rows.reduce((s, r) => s + r.bytes, 0) + sizeOf(S.theme) + sizeOf(S.users) + sizeOf(S.pins);
   return { rows, total, photoBytes };
 }
@@ -39,7 +40,7 @@ export function vYllapito() {
   h += secH("Varmuuskopio") + `<div class="card">
     <p>Lataa kaikki sovelluksen tiedot yhdeksi tiedostoksi puhelimeen tai tietokoneelle. Tiedostosta voi palauttaa kaiken, jos jotain katoaa.</p>
     <div class="dl-row"><dt>Viimeisin</dt><dd>${meta.lastBackupAt ? `${fmtDT(meta.lastBackupAt)} (${esc(meta.lastBackupBy || "")})` : '<span class="warn">Ei vielä otettu</span>'}</dd></div>
-    <label class="fld-check"><input type="checkbox" id="bk-photos" checked><span>Kuvat mukaan (${mb(st.photoBytes)})</span></label>
+    <label class="fld-check"><input type="checkbox" id="bk-photos" checked><span>Kuvat mukaan${S.photoScan ? ` (${mb(st.photoBytes)})` : ""}</span></label>
     <div class="row-btns"><button class="btn primary" data-action="backupDownload">⬇ Lataa varmuuskopio</button>
     <label class="btn ghost file-btn">⬆ Palauta tiedostosta<input type="file" id="bk-file" accept="application/json,.json" hidden></label></div>
     <p class="form-note">Palautus korvaa nykyiset tiedot varmuuskopion tiedoilla. Ota ensin uusi varmuuskopio, jos et ole varma.</p>
@@ -54,6 +55,9 @@ export function vYllapito() {
     ${st.rows.filter(r => r.n).sort((a, b) => b.bytes - a.bytes).map(r => `<tr><td>${esc(r.c === "photos" ? "Kuvat" : COL_NAMES[r.c] || r.c)}</td><td class="r">${r.n}</td><td class="r">${mb(r.bytes)}</td></tr>`).join("")}
     </tbody></table></div>`;
 
+  // Kuvien siivous (175)
+  h += photoSection();
+
   // Arkistointi (183)
   h += archiveSection();
   return h;
@@ -66,13 +70,19 @@ function download(name, text) {
   a.download = name; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
-function buildBackup(withPhotos) {
+// Kuvat haetaan aina suoraan tietokannasta, koska laitteelle on voitu ladata vain osa niistä
+async function buildBackup(withPhotos) {
+  let photos = null;
+  if (withPhotos) {
+    const snap = await getDocs(collection(db, "photos"));
+    photos = Object.fromEntries(snap.docs.map(d => [d.id, { data: d.data().data, createdAt: d.data().createdAt || null, createdByName: d.data().createdByName || null }]));
+  }
   const collections = {};
   COLS.forEach(c => { collections[c] = Object.fromEntries(list(c).map(({ id, ...rest }) => [id, rest])); });
   return {
     app: "mokki", version: 1, createdAt: nowIso(), createdBy: S.me.name,
     users: { users: S.users, pins: S.pins }, theme: S.theme, collections,
-    photos: withPhotos ? Object.fromEntries([...photoCache.entries()].map(([id, data]) => [id, { data }])) : null
+    photos
   };
 }
 
@@ -105,10 +115,13 @@ document.addEventListener("change", async e => {
 });
 
 Object.assign(ACTIONS, {
-  backupDownload: () => {
+  backupDownload: async () => {
     if (!isAdmin()) return;
     const withPhotos = document.getElementById("bk-photos")?.checked !== false;
-    download(`mokki-varmuuskopio-${ymd(new Date())}.json`, JSON.stringify(buildBackup(withPhotos)));
+    toast("Kootaan varmuuskopiota…");
+    let data;
+    try { data = await buildBackup(withPhotos); } catch (e) { fail(e); return; }
+    download(`mokki-varmuuskopio-${ymd(new Date())}.json`, JSON.stringify(data));
     const m = { lastBackupAt: nowIso(), lastBackupBy: S.me.name };
     S.meta = { ...(S.meta || {}), ...m };
     setDoc(META_DOC(), m, { merge: true }).catch(fail);
@@ -174,5 +187,75 @@ Object.assign(ACTIONS, {
       }
       if (e.target === m || e.target.closest("[data-mclose]")) { m.classList.remove("open"); m.innerHTML = ""; m.onclick = null; }
     };
+  }
+});
+
+// ---------- Kuvien siivous (175) ----------
+// Etsii kaikki kuvat, kertoo niiden koon ja mihin kirjaukseen ne kuuluvat.
+// Käyttämättömät kuvat (kirjaus poistettu, lomake suljettu kesken) voi poistaa kerralla.
+function photoRefs() {
+  const refs = new Map();
+  const label = d => d.title || d.name || d.text || d.label || d.who || "";
+  COLS.forEach(c => list(c).forEach(d => {
+    const src = c === "archive" ? d.data || {} : d;
+    (Array.isArray(src.photos) ? src.photos : []).forEach(id => refs.set(id, { col: c === "archive" ? "archive" : c, docId: d.id, title: label(src) }));
+  }));
+  return refs;
+}
+async function scanPhotos() {
+  S.photoScanning = true; render();
+  try {
+    const snap = await getDocs(collection(db, "photos"));
+    const refs = photoRefs();
+    const items = snap.docs.map(d => { const data = d.data().data || ""; photoCache.set(d.id, data); return { id: d.id, bytes: data.length, at: d.data().createdAt, by: d.data().createdByName, ref: refs.get(d.id) || null }; });
+    items.sort((a, b) => b.bytes - a.bytes);
+    S.photoScan = { items, total: items.reduce((s, i) => s + i.bytes, 0), at: nowIso() };
+  } catch (e) { fail(e); }
+  S.photoScanning = false; render();
+}
+function photoSection() {
+  const sc = S.photoScan;
+  let h = secH("Kuvat") + `<div class="card"><p>Näe, mitkä kuvat vievät eniten tilaa, ja poista käyttämättömät kuvat, jotka eivät enää näy missään.</p>
+    <button class="btn" data-action="photoScan" ${S.photoScanning ? "disabled" : ""}>${S.photoScanning ? "Tarkistetaan…" : sc ? "↻ Tarkista uudelleen" : "🔍 Tarkista kuvat"}</button>`;
+  if (!sc) return h + `<p class="form-note">Tarkistus lataa kaikki kuvat kerran tälle laitteelle.</p></div>`;
+  const unused = sc.items.filter(i => !i.ref);
+  const ub = unused.reduce((s, i) => s + i.bytes, 0);
+  h += `<div class="stat-grid t-stats"><div><div class="card-label">Kuvia</div><div class="big">${sc.items.length}</div><div class="muted small">${mb(sc.total)}</div></div>
+    <div><div class="card-label">Käyttämättömiä</div><div class="big ${unused.length ? "warn" : "ok"}">${unused.length}</div><div class="muted small">${mb(ub)}</div></div></div>`;
+  if (unused.length) h += `<button class="btn danger ghost block" data-action="photoDelUnused">Poista ${unused.length} käyttämätöntä kuvaa (${mb(ub)})</button>`;
+  h += `</div>`;
+  if (sc.items.length) h += `<div class="card-label" style="margin:4px 4px 0">Isoimmat kuvat</div><div class="list">${sc.items.slice(0, 30).map(i => `<div class="item"><div class="item-row">
+      <img class="thumb small-thumb" data-photo="${esc(i.id)}" alt="">
+      <div class="item-main"><div class="item-title">${mb(i.bytes)}</div><div class="by">${i.ref ? esc((COL_NAMES[i.ref.col] || i.ref.col) + (i.ref.title ? ": " + i.ref.title : "")) : '<span class="warn">Ei käytössä missään</span>'}${i.by ? " · " + esc(i.by) : ""}</div></div>
+      <button class="icon-btn" data-action="photoDel" data-id="${esc(i.id)}" aria-label="Poista kuva">🗑</button></div></div>`).join("")}</div>`;
+  return h;
+}
+function dropFromScan(ids) {
+  if (!S.photoScan) return;
+  S.photoScan.items = S.photoScan.items.filter(i => !ids.includes(i.id));
+  S.photoScan.total = S.photoScan.items.reduce((s, i) => s + i.bytes, 0);
+}
+Object.assign(ACTIONS, {
+  photoScan: () => { if (isAdmin()) scanPhotos(); },
+  photoDel: async d => {
+    const it = S.photoScan?.items.find(i => i.id === d.id); if (!it) return;
+    const where = it.ref ? `\n\nKuva on käytössä: ${COL_NAMES[it.ref.col] || it.ref.col}${it.ref.title ? " – " + it.ref.title : ""}. Se poistetaan myös sieltä.` : "";
+    if (!confirm(`Poistetaanko kuva (${mb(it.bytes)})?${where}`)) return;
+    if (it.ref && it.ref.col !== "archive") {
+      const owner = list(it.ref.col).find(x => x.id === it.ref.docId);
+      if (owner) await updateDoc(doc(db, it.ref.col, owner.id), { photos: (owner.photos || []).filter(p => p !== it.id) }).catch(fail);
+    }
+    await deleteDoc(doc(db, "photos", it.id)).catch(fail);
+    photoCache.delete(it.id); dropFromScan([it.id]); toast("Kuva poistettu"); render();
+  },
+  photoDelUnused: async () => {
+    const ids = (S.photoScan?.items || []).filter(i => !i.ref).map(i => i.id);
+    if (!ids.length || !confirm(`Poistetaanko ${ids.length} käyttämätöntä kuvaa? Niitä ei näy missään sovelluksessa.`)) return;
+    for (let i = 0; i < ids.length; i += 400) {
+      const b = writeBatch(db); ids.slice(i, i + 400).forEach(id => b.delete(doc(db, "photos", id)));
+      await b.commit().catch(fail);
+    }
+    ids.forEach(id => photoCache.delete(id)); dropFromScan(ids);
+    toast(`${ids.length} kuvaa poistettu`); render();
   }
 });

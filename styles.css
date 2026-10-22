@@ -501,3 +501,22 @@ button.info-dot { border: 0; background: var(--green-l); color: var(--green); bo
 .auth-logo { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; margin: 0 auto 4px; display: block; }
 .drag-active .savebar, .drag-active .bottomnav, .drag-active .topbar { pointer-events: none; }
 .drag-active { user-select: none; -webkit-user-select: none; }
+
+/* ---------- Rahakentät (81) ---------- */
+.money { position: relative; display: block; }
+.money input { padding-right: 34px !important; text-align: right; font-variant-numeric: tabular-nums; }
+.money i { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); font-weight: 600; pointer-events: none; }
+
+/* ---------- Tummat tyylit (58) ---------- */
+.dark-styles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dark-preset { flex: 1; min-width: 120px; }
+
+/* ---------- Kuvat (175, 182) ---------- */
+.thumb.small-thumb { width: 48px; height: 48px; flex: none; }
+.thumb.loading { background: linear-gradient(90deg, var(--green-l), var(--line), var(--green-l)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.t-stats { margin: 12px 0; }
+
+/* ---------- Esikatselu toisena käyttäjänä (166) ---------- */
+.preview-banner { position: fixed; left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); z-index: 90; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--warn); color: #fff; padding: 8px 8px 8px 14px; border-radius: 14px; box-shadow: 0 8px 26px rgba(0,0,0,.3); font-size: .9rem; }
+.preview-banner .btn { background: #fff; color: #222; border-color: transparent; }

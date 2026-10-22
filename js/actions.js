@@ -1,3 +1,6 @@
+import { DARK_STYLES } from "./theme.js";
+import { setPhotoMode } from "./core.js";
+import { startData } from "./main.js";
 import { THEMEVER_ACTIONS, pushThemeHistory } from "./views/teemat.js";
 import { DEVICE_ACTIONS, deviceName } from "./views/laitteet.js";
 import { parseYmd, ymd } from "./core.js";
@@ -23,10 +26,10 @@ export const ACTIONS = {
   logoutDevice: () => { if (confirm("Kirjataanko tämä laite ulos? Seuraavalla kerralla tarvitaan yhteinen salasana.")) { try { localStorage.removeItem(USER_KEY); } catch { } signOut(auth); } },
 
   // Huolto
-  addLog: d => openForm({ title: LOG_ADD[d.type], fields: LOG_FIELDS[d.type], onSubmit: v => { save("logs", { ...v, type: d.type }); toast("Tallennettu"); } }),
+  addLog: d => openForm({ formKey: d.type, title: LOG_ADD[d.type], fields: LOG_FIELDS[d.type], onSubmit: v => { save("logs", { ...v, type: d.type }); toast("Tallennettu"); } }),
   editLog: d => {
     const l = findIn("logs", d.id); if (!l) return;
-    openForm({ title: "Muokkaa: " + (l.type === "huolto" ? l.title : LOG_TYPES[l.type]), fields: LOG_FIELDS[l.type], values: l, onSubmit: v => save("logs", v, l.id), onDelete: () => remove("logs", l.id) });
+    openForm({ formKey: l.type, title: "Muokkaa: " + (l.type === "huolto" ? l.title : LOG_TYPES[l.type]), fields: LOG_FIELDS[l.type], values: l, onSubmit: v => save("logs", v, l.id), onDelete: () => remove("logs", l.id) });
   },
 
   // Tehtävät
@@ -105,8 +108,8 @@ export const ACTIONS = {
   },
   delShop: d => remove("shopping", d.id),
   moveShop: d => { patch("shopping", d.id, { list: "vie" }); toast("Siirretty Vie mukana -listalle"); },
-  addInv: () => openForm({ title: "Uusi tavara", fields: INV_FIELDS, onSubmit: v => { save("inventory", v); } }),
-  editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); if (v.status !== "ok") ensureShopping(i.id, v.name); else closeLinked(i.id); }, onDelete: () => remove("inventory", i.id) }); },
+  addInv: () => openForm({ formKey: "tavara", title: "Uusi tavara", fields: INV_FIELDS, onSubmit: v => { save("inventory", v); } }),
+  editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ formKey: "tavara", title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); if (v.status !== "ok") ensureShopping(i.id, v.name); else closeLinked(i.id); }, onDelete: () => remove("inventory", i.id) }); },
   invStatus: d => {
     const i = findIn("inventory", d.id); if (!i) return;
     const order = ["ok", "vahissa", "loppu"];
@@ -117,8 +120,8 @@ export const ACTIONS = {
 
   // Kulut
   kulutYear: d => { S.kulutYear = Number(d.year); render(); },
-  addPay: () => openForm({ title: "Uusi maksu", fields: payFields(), onSubmit: v => { save("payments", v); toast("Tallennettu"); } }),
-  editPay: d => { const p = findIn("payments", d.id); if (!p) return; openForm({ title: "Muokkaa maksua", fields: payFields(), values: p, onSubmit: v => save("payments", v, p.id), onDelete: () => remove("payments", p.id) }); },
+  addPay: () => openForm({ formKey: "maksu", title: "Uusi maksu", fields: payFields(), onSubmit: v => { save("payments", v); toast("Tallennettu"); } }),
+  editPay: d => { const p = findIn("payments", d.id); if (!p) return; openForm({ formKey: "maksu", title: "Muokkaa maksua", fields: payFields(), values: p, onSubmit: v => save("payments", v, p.id), onDelete: () => remove("payments", p.id) }); },
   togglePaid: d => {
     const p = findIn("payments", d.id); if (!p) return;
     const nowPaid = !p.paid;
@@ -136,8 +139,8 @@ export const ACTIONS = {
   editInfo: () => openForm({ title: "Perustiedot", fields: INFO_FIELDS, values: getInfo(), onSubmit: v => { save("info", v, "main"); toast("Tallennettu"); } }),
   addPlace: d => openForm({ title: "Uusi paikka tai ohje", fields: PLACE_FIELDS, values: { title: d.title || "" }, onSubmit: v => { save("places", v); } }),
   editPlace: d => { const p = findIn("places", d.id); if (!p) return; openForm({ title: "Muokkaa", fields: PLACE_FIELDS, values: p, onSubmit: v => save("places", v, p.id), onDelete: () => remove("places", p.id) }); },
-  addContact: () => openForm({ title: "Uusi yhteystieto", fields: CONTACT_FIELDS, onSubmit: v => { save("contacts", v); } }),
-  editContact: d => { const c = findIn("contacts", d.id); if (!c) return; openForm({ title: "Muokkaa yhteystietoa", fields: CONTACT_FIELDS, values: c, onSubmit: v => save("contacts", v, c.id), onDelete: () => remove("contacts", c.id) }); },
+  addContact: () => openForm({ formKey: "yhteystieto", title: "Uusi yhteystieto", fields: CONTACT_FIELDS, onSubmit: v => { save("contacts", v); } }),
+  editContact: d => { const c = findIn("contacts", d.id); if (!c) return; openForm({ formKey: "yhteystieto", title: "Muokkaa yhteystietoa", fields: CONTACT_FIELDS, values: c, onSubmit: v => save("contacts", v, c.id), onDelete: () => remove("contacts", c.id) }); },
 
   // Varaukset
   calNav: d => {
@@ -158,8 +161,8 @@ export const ACTIONS = {
   editBooking: d => { const b = findIn("bookings", d.id); if (b) bookingForm(b, b.id); },
 
   // Korjaukset
-  addRepair: () => openForm({ title: "Uusi korjauskohde", fields: REPAIR_FIELDS, onSubmit: v => { save("repairs", v); } }),
-  editRepair: d => { const r = findIn("repairs", d.id); if (!r) return; openForm({ title: "Muokkaa korjausta", fields: REPAIR_FIELDS, values: r, onSubmit: v => save("repairs", v, r.id), onDelete: () => remove("repairs", r.id) }); },
+  addRepair: () => openForm({ formKey: "korjaus", title: "Uusi korjauskohde", fields: REPAIR_FIELDS, onSubmit: v => { save("repairs", v); } }),
+  editRepair: d => { const r = findIn("repairs", d.id); if (!r) return; openForm({ formKey: "korjaus", title: "Muokkaa korjausta", fields: REPAIR_FIELDS, values: r, onSubmit: v => save("repairs", v, r.id), onDelete: () => remove("repairs", r.id) }); },
 
   // Käyttäjät
   setPin: d => {
@@ -291,17 +294,21 @@ export function closeLinked(invId) {
   list("shopping").filter(s => !s.done && s.invId === invId).forEach(s => patch("shopping", s.id, { done: true, doneByName: S.me.name, doneAt: nowIso() }));
 }
 
+export const BOOKING_FIELDS = [
+  { name: "who", label: "Kuka", type: "select", required: true, options: () => memberNames() },
+  { name: "start", label: "Saapuminen", type: "date", required: true },
+  { name: "end", label: "Lähtö", type: "date", required: true },
+  { name: "status", label: "Tila", type: "select", options: [["varma", "Varma"], ["alustava", "Alustava – ei vielä lukossa"]], def: "varma" },
+  { name: "people", label: "Henkilömäärä", type: "number", placeholder: "esim. 4" },
+  { name: "guests", label: "Muut mukana / vieraat", placeholder: "esim. Liisa ja lapset, naapurin Matti" },
+  { name: "note", label: "Lisätieto", placeholder: "esim. saunailta, talkoot" }
+];
 export function bookingForm(values, id) {
   openForm({
-    title: id ? "Muokkaa varausta" : "Uusi varaus", values,
+    formKey: "varaus", title: id ? "Muokkaa varausta" : "Uusi varaus", values,
     fields: [
-      { name: "who", label: "Kuka", type: "select", options: () => { const n = memberNames(); return values.who && !n.includes(values.who) ? [values.who, ...n] : n; } },
-      { name: "start", label: "Saapuminen", type: "date", required: true },
-      { name: "end", label: "Lähtö", type: "date", required: true },
-      { name: "status", label: "Tila", type: "select", options: [["varma", "Varma"], ["alustava", "Alustava – ei vielä lukossa"]], def: "varma" },
-      { name: "people", label: "Henkilömäärä", type: "number", placeholder: "esim. 4" },
-      { name: "guests", label: "Muut mukana / vieraat", placeholder: "esim. Liisa ja lapset, naapurin Matti" },
-      { name: "note", label: "Lisätieto", placeholder: "esim. saunailta, talkoot" }
+      { ...BOOKING_FIELDS[0], options: () => { const n = memberNames(); return values.who && !n.includes(values.who) ? [values.who, ...n] : n; } },
+      ...BOOKING_FIELDS.slice(1)
     ],
     onSubmit: v => {
       if (v.end < v.start) { alert("Lähtöpäivä ei voi olla ennen saapumista."); return false; }
@@ -381,11 +388,15 @@ document.addEventListener("click", e => {
   const el = e.target.closest("[data-action]");
   if (!el || el.disabled) return;
   const fn = ACTIONS[el.dataset.action];
+  if (fn && S.readOnly && !READONLY_OK.has(el.dataset.action)) { e.preventDefault(); toast("Esikatselutila – muutokset eivät ole käytössä", true); return; }
   if (fn) { e.preventDefault(); fn(el.dataset, el); }
 });
+// Toiminnot, jotka ovat sallittuja esikatseltaessa toisena käyttäjänä (eivät muuta tietoja)
+const READONLY_OK = new Set(["tab", "calNav", "calView", "calMonthOpen", "expand", "todoCat", "openDevice", "closeDevice", "kulutYear", "copy", "runHistory", "previewStop"]);
 document.addEventListener("submit", e => {
   const f = e.target.closest("form[data-form]"); if (!f) return;
   e.preventDefault();
+  if (S.readOnly) { toast("Esikatselutila – muutokset eivät ole käytössä", true); return; }
   FORMS[f.dataset.form]?.(f);
 });
 document.addEventListener("toggle", e => {
@@ -411,5 +422,40 @@ window.addEventListener("offline", updateNet);
 
 // Laitteiden, puuvaraston ja tarkastusten toiminnot (views/laitteet.js)
 Object.assign(ACTIONS, DEVICE_ACTIONS, THEMEVER_ACTIONS, {
-  addDeviceLog: d => openForm({ title: "Huolto: " + deviceName(d.id), fields: LOG_FIELDS.huolto, values: { deviceId: d.id }, onSubmit: v => { save("logs", { ...v, type: "huolto" }); toast("Tallennettu"); } })
+  addDeviceLog: d => openForm({ formKey: "huolto", title: "Huolto: " + deviceName(d.id), fields: LOG_FIELDS.huolto, values: { deviceId: d.id }, onSubmit: v => { save("logs", { ...v, type: "huolto" }); toast("Tallennettu"); } })
 });
+
+// ---------- Tumma tyyli (58), kuvien lataustapa (182), esikatselu toisena käyttäjänä (166) ----------
+Object.assign(ACTIONS, {
+  fieldsForm: d => { S.fieldsForm = d.f; render(); },
+  themeDarkStyle: d => {
+    const st = DARK_STYLES[d.v]; if (!st || !S.themeDraft) return;
+    Object.assign(S.themeDraft.dark, { bg: st.bg, card: st.card, line: st.line });
+    S.themePal = "dark"; previewTheme(); render();
+    toast(`${st.name} valittu – muista tallentaa`);
+  },
+  setPhotoMode: d => {
+    setPhotoMode(d.v === "all" ? "all" : "lazy");
+    startData(); render();
+    toast(d.v === "all" ? "Kaikki kuvat ladataan tälle laitteelle" : "Kuvat ladataan vasta, kun niitä katsotaan");
+  },
+  previewAs: d => {
+    if (!isAdmin() || d.name === S.me.name) return;
+    discardThemeDraft();
+    S.realMe = S.me; S.me = { name: d.name }; S.readOnly = true;
+    showPreviewBanner(); location.hash = "koti"; render();
+  },
+  previewStop: () => {
+    if (!S.realMe) return;
+    S.me = S.realMe; S.realMe = null; S.readOnly = false;
+    document.getElementById("preview-banner")?.remove();
+    location.hash = "kayttajat"; render();
+  }
+});
+function showPreviewBanner() {
+  document.getElementById("preview-banner")?.remove();
+  const b = document.createElement("div");
+  b.id = "preview-banner"; b.className = "preview-banner";
+  b.innerHTML = `<span>👁 Esikatselet: <b>${esc(S.me.name)}</b> · vain katselu</span><button class="btn small" type="button" data-action="previewStop">Lopeta</button>`;
+  document.body.appendChild(b);
+}

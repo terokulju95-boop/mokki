@@ -109,10 +109,10 @@ const findDev = id => list("devices").find(d => d.id === id);
 export const DEVICE_ACTIONS = {
   openDevice: d => { S.deviceOpen = d.id; window.scrollTo(0, 0); render(); },
   closeDevice: () => { S.deviceOpen = null; if (location.hash !== "#laitteet") location.hash = "laitteet"; else render(); },
-  addDevice: () => openForm({ title: "Uusi laite", fields: DEVICE_FIELDS, onSubmit: v => { S.deviceOpen = save("devices", v); toast("Laite lisätty"); } }),
+  addDevice: () => openForm({ formKey: "laite", title: "Uusi laite", fields: DEVICE_FIELDS, onSubmit: v => { S.deviceOpen = save("devices", v); toast("Laite lisätty"); } }),
   editDevice: d => {
     const x = findDev(d.id); if (!x) return;
-    openForm({ title: "Muokkaa laitetta", fields: DEVICE_FIELDS, values: x, onSubmit: v => save("devices", v, x.id), onDelete: () => { remove("devices", x.id); S.deviceOpen = null; } });
+    openForm({ formKey: "laite", title: "Muokkaa laitetta", fields: DEVICE_FIELDS, values: x, onSubmit: v => save("devices", v, x.id), onDelete: () => { remove("devices", x.id); S.deviceOpen = null; } });
   },
   partToBuy: d => {
     const x = findDev(d.id); const p = x && parts(x)[Number(d.i)]; if (!p) return;

@@ -29,3 +29,4 @@ export async function deleteDoc(ref) { delete store[ref.col]?.[ref.id]; notify()
 export async function getDoc(ref) { const d = store[ref.col]?.[ref.id]; return { exists: () => !!d, data: () => d }; }
 export function onSnapshot(ref, a, b) { const cb = typeof a === "function" ? a : b; const s = { ref, cb }; subs.push(s); setTimeout(() => fire(s), 5); return () => subs.splice(subs.indexOf(s), 1); }
 export function writeBatch() { const ops = []; return { set: (r, d) => ops.push(() => setDoc(r, d)), update: (r, d) => ops.push(() => updateDoc(r, d)), delete: r => ops.push(() => deleteDoc(r)), commit: async () => ops.forEach(f => f()) }; }
+export async function getDocs(ref) { const c = store[ref.col] || {}; return { docs: Object.entries(c).map(([id, d]) => ({ id, data: () => structuredClone(d) })) }; }
