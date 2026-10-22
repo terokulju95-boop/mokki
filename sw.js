@@ -1,8 +1,8 @@
 // Mökki – service worker: sovellus aukeaa myös ilman verkkoa.
 // Kun päivität sovelluksen tiedostoja GitHubiin, kasvata versionumeroa.
-const CACHE = "mokki-v7";
+const CACHE = "mokki-v12";
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
-const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./firebase-config.js", "./manifest.json",
+const SHELL = ["./", "./index.html", "./styles.css", "./js/main.js", "./js/core.js", "./js/theme.js", "./js/actions.js", "./js/views/koti.js", "./js/views/huolto.js", "./js/views/kausi.js", "./js/views/tavarat.js", "./js/views/kulut.js", "./js/views/tiedot.js", "./js/views/asetukset.js", "./js/views/yllapito.js", "./js/views/laitteet.js", "./js/views/teemat.js", "./firebase-config.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 const SDK_FILES = ["firebase-app.js", "firebase-auth.js", "firebase-firestore.js"].map(f => SDK + f);
 

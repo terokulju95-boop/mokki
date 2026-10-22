@@ -1,0 +1,36 @@
+// Laiterekisteri, huolto laitteelle, varaosa hankittaviin, puuvarasto, tarkastukset
+export default async ({ page, go, text, check, db, OUT }) => {
+  await go(page, "#lisaa");
+  check("Laitteet Lisää-valikossa", (await text()).includes("Laitteet"));
+  await go(page, "#laitteet");
+  await page.click('[data-action="addDevice"]'); await page.waitForTimeout(200);
+  await page.fill('#modal [name="name"]', "Vesipumppu");
+  await page.fill('#modal [name="brand"]', "Grundfos");
+  await page.fill('#modal [name="model"]', "JP 4-47");
+  await page.fill('#modal [name="warranty"]', "2030-05-01");
+  await page.fill('#modal [name="parts"]', "Suodatin 96XXXX\nTiiviste 1\"");
+  await page.click('#modal button[type="submit"]'); await page.waitForTimeout(400);
+  let t = await text();
+  check("laitteen tiedot", t.includes("Grundfos JP 4-47") && t.includes("voimassa"));
+  check("varaosat listattu", t.includes("Suodatin 96XXXX"));
+  await page.click('[data-action="partToBuy"][data-i="0"]'); await page.waitForTimeout(300);
+  check("varaosa Hankittaviin", Object.values((await db()).shopping).some(s => s.text.includes("Suodatin 96XXXX") && s.list === "osta"));
+  await page.click('[data-action="addDeviceLog"]'); await page.waitForTimeout(200);
+  await page.fill('#modal [name="title"]', "Pumpun suodatin vaihdettu");
+  await page.click('#modal button[type="submit"]'); await page.waitForTimeout(400);
+  check("huoltohistoria laitteella", (await text()).includes("Pumpun suodatin vaihdettu") && (await text()).includes("Huoltohistoria (1)"));
+  await page.screenshot({ path: OUT + "/laite.png", fullPage: true });
+  await go(page, "#huoltotyot");
+  check("huoltotyössä laitemerkki", (await text()).includes("🔧 Vesipumppu"));
+  await page.click('[data-tab="tarkastukset"]'); await page.waitForTimeout(200);
+  await page.click('[data-action="addCheck"][data-name="Sammutin"]'); await page.waitForTimeout(200);
+  await page.click('#modal button[type="submit"]'); await page.waitForTimeout(300);
+  check("tarkastettava lisätty", (await text()).includes("Ei tarkastettu"));
+  await page.click('[data-action="checkDone"]'); await page.waitForTimeout(300);
+  check("tarkastus kirjattu", (await text()).includes("✓ Tänään"));
+  await go(page, "#huolto"); await page.click('[data-tab="puut"]'); await page.waitForTimeout(200);
+  await page.click('[data-action="setWoodStock"][data-v="puolillaan"]'); await page.waitForTimeout(300);
+  check("puuvaraston tila", (await text()).includes("Päivitti Tero"));
+  await go(page, "#koti");
+  check("puuvaraston tila etusivulla", (await text()).includes("Puuvaja: Puolillaan") || (await text()).includes("Puolillaan"));
+};

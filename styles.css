@@ -431,3 +431,73 @@ button.info-dot { border: 0; background: var(--green-l); color: var(--green); bo
 .t-navrow .fld input { min-height: 40px; padding: 8px 10px; }
 .t-navic svg { width: 24px; height: 24px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .chip-btn:disabled { opacity: .45; }
+
+/* Päivitysilmoitus ja lähetystila */
+.update-banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 14px + env(safe-area-inset-bottom)); z-index: 150; display: flex; align-items: center; gap: 12px; background: var(--ink); color: var(--bg); padding: 8px 8px 8px 16px; border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.25); font-weight: 600; font-size: .92rem; white-space: nowrap; }
+.net.sending { background: var(--green-l); color: var(--green); }
+
+/* ---------- Siirtymät (idea 5) ---------- */
+@keyframes enterUp { from { opacity: 0; transform: translateY(10px); } }
+.view.enter > * { animation: enterUp .32s cubic-bezier(.2, .7, .3, 1) both; animation-delay: calc(var(--i, 0) * 28ms); }
+@keyframes pop { 40% { transform: scale(1.22); } }
+.check.on { animation: pop .28s ease-out; }
+.item { transition: background-color .2s; }
+.modal.open { animation: fadeIn .18s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .view.enter > *, .check.on, .modal.open, .sheet { animation: none !important; } }
+
+/* Lisää-valikon ryhmät */
+.menu-group { font-size: .75rem; font-weight: 700; text-transform: var(--label-tt); letter-spacing: .05em; color: var(--label); margin: 6px 4px -4px; }
+.t-dim { opacity: .5; }
+.t-group { margin-top: 6px; font-weight: 400 !important; }
+
+/* ---------- Varaukset: tila, päällekkäisyys, viikko ja vuosi ---------- */
+.cal-b { background: var(--c); }
+.cal-b.tent, .week-b.tent { background: repeating-linear-gradient(135deg, var(--c) 0 5px, color-mix(in srgb, var(--c) 45%, var(--card)) 5px 10px); }
+.dot.tent { background: repeating-linear-gradient(135deg, var(--c) 0 2px, transparent 2px 4px) !important; border: 1px solid var(--c); }
+.avatar.tent { opacity: .65; outline: 2px dashed currentColor; outline-offset: 1px; }
+.cal-cell { position: relative; }
+.cal-cell.clash, .week-day.clash { box-shadow: inset 0 0 0 2px var(--bad); }
+.clash-ic { position: absolute; top: 1px; right: 3px; font-size: .6rem; color: var(--bad); }
+.week { display: grid; gap: 6px; }
+.week-day { position: relative; display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 8px; min-height: 48px; padding: 6px 10px; border: 0; border-radius: var(--ri); background: var(--bg); text-align: left; cursor: pointer; }
+.week-day.today { outline: 2px solid var(--green); }
+.week-day.past { opacity: .55; }
+.week-d { font-size: .88rem; }
+.week-bs { display: flex; flex-wrap: wrap; gap: 4px; }
+.week-b { background: var(--c); color: #fff; font-size: .8rem; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
+.year { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (min-width: 560px) { .year { grid-template-columns: repeat(4, 1fr); } }
+.ym { border: 0; background: var(--bg); border-radius: var(--ri); padding: 6px; cursor: pointer; text-align: left; }
+.ym b { font-size: .78rem; display: block; margin-bottom: 4px; }
+.ym-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.ym-grid i { aspect-ratio: 1; border-radius: 2px; background: color-mix(in srgb, var(--line) 70%, transparent); }
+.ym-grid i:empty:first-child { }
+.ym-grid i.b { background: var(--c); }
+.ym-grid i.b.tent { background: color-mix(in srgb, var(--c) 45%, var(--card)); }
+.ym-grid i.clash { outline: 1.5px solid var(--bad); }
+.ym-grid i.today { outline: 1.5px solid var(--ink); }
+.year-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .85rem; }
+.tentative-line { opacity: .8; }
+.week-b.tent { text-shadow: 0 1px 2px rgba(0,0,0,.65); }
+
+/* Puuvaraston tila */
+.seg.stock button.on.ok { background: var(--ok-l); color: var(--ok); }
+.seg.stock button.on.warn { background: var(--warn-l); color: var(--warn); }
+.seg.stock button.on.bad { background: var(--bad-l); color: var(--bad); }
+.stock-pill { display: inline-block; margin-top: 6px; font-size: .78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.stock-pill.ok { background: var(--ok-l); color: var(--ok); }
+.stock-pill.warn { background: var(--warn-l); color: var(--warn); }
+.stock-pill.bad { background: var(--bad-l); color: var(--bad); }
+
+/* Raahaus, versiot, kuvake */
+.he-drag { cursor: grab; touch-action: none; font-size: 1.2rem; }
+.he.dragging { z-index: 40; position: relative; box-shadow: 0 12px 34px rgba(0,0,0,.25); opacity: .95; transition: none; }
+.he { transition: transform .15s; }
+.sw-mini { display: flex; width: 44px; height: 22px; border-radius: 6px; overflow: hidden; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.sw-mini i { flex: 1; }
+.icon-row { display: flex; align-items: center; gap: 14px; }
+.icon-prev { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; box-shadow: var(--shadow); }
+.auth-logo { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; margin: 0 auto 4px; display: block; }
+.drag-active .savebar, .drag-active .bottomnav, .drag-active .topbar { pointer-events: none; }
+.drag-active { user-select: none; -webkit-user-select: none; }

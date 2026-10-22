@@ -1,0 +1,8 @@
+{
+  "name": "mokki",
+  "private": true,
+  "description": "Perheen yhteinen mökkikirja (PWA). Sovellus ei tarvitse käännöstä – package.json on vain testejä varten.",
+  "type": "module",
+  "scripts": { "test": "node tests/e2e.mjs" },
+  "devDependencies": { "playwright": "^1.48.0" }
+}

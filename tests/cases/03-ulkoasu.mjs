@@ -1,0 +1,33 @@
+// Ulkoasu, etusivun muokkaus, alavalikko, ominaisuudet; toinen käyttäjä näkee tallennetun
+export default async ({ page, ctx, go, text, check, URL0, OUT }) => {
+  await go(page, "#kulut");
+  let t = await text();
+  check("eräpäivät pois oletuksena", !t.includes("Eräpäivä") && !t.includes("↻"));
+  await go(page, "#ulkoasu");
+  await page.click('[data-preset="jarvi"]'); await page.waitForTimeout(150);
+  await page.check("#tk-features-payDue");
+  await page.click('[data-action="navRemove"][data-key="tavarat"]'); await page.waitForTimeout(100);
+  await page.click('[data-action="navAdd"][data-key="kulut"]'); await page.waitForTimeout(100);
+  await page.fill("#tk-text-nav-huolto", "Puut");
+  await page.locator("#tk-light-ink").evaluate(e => { e.value = "#eeeeee"; e.dispatchEvent(new Event("input", { bubbles: true })); });
+  check("kontrastivaroitus", (await page.locator(".t-warn").count()) === 1);
+  await page.locator("#tk-light-ink").evaluate(e => { e.value = "#1a2530"; e.dispatchEvent(new Event("input", { bubbles: true })); });
+  await page.click('[data-action="themeSave"]'); await page.waitForTimeout(300);
+  await go(page, "#koti");
+  check("alavalikko päivittyi", (await page.locator("#nav").innerText()).includes("Puut"));
+  await page.click('[data-action="homeEdit"]'); await page.waitForTimeout(200);
+  await page.click('[data-action="homeSize"][data-key="bookings"][data-size="compact"]'); await page.waitForTimeout(100);
+  await page.fill("#tk-home-titles-bookings", "Kuka tulossa");
+  await page.click('[data-action="themeSave"]'); await page.waitForTimeout(300);
+  check("etusivun muokkaus tallentui", (await text()).toUpperCase().includes("KUKA TULOSSA"));
+  check("maksut-kortti näkyy kun eräpäivät päällä", (await text()).toUpperCase().includes("ERÄÄNTYMÄSSÄ"));
+  await page.screenshot({ path: OUT + "/koti.png", fullPage: true });
+  const p2 = await ctx.newPage();
+  await p2.goto(URL0); await p2.evaluate(() => { localStorage.setItem("mokki_user", "Timo"); localStorage.removeItem("mokki_theme"); });
+  await go(p2, "#koti");
+  check("Timo näkee tallennetun ulkoasun", (await text(p2)).toUpperCase().includes("KUKA TULOSSA"));
+  check("Timolla ei muokkausnappia", (await p2.locator('[data-action="homeEdit"]').count()) === 0);
+  await go(p2, "#ulkoasu");
+  check("Timo ei pääse ulkoasuun", (await text(p2)).includes("vain pääkäyttäjä"));
+  await p2.close();
+};
