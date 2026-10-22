@@ -10,8 +10,7 @@ export default async ({ page, go, text, check }) => {
   for (const k of ["ruska", "kaamos", "kesayo", "saaristo"]) check("teema " + k, await page.locator(`[data-preset="${k}"]`).count() === 1);
   // talvi alkaa vasta joulukuussa → nyt (lokakuu) kevään lista; testi laskee odotetun arvon itse
   await page.selectOption("#tk-seasons-talvi", "12");
-  await page.fill("#tk-menu-groups-kayttajat", "Ihmiset");
-  await page.click('[data-action="menuMove"][data-key="profiili"][data-dir="-1"]'); await page.waitForTimeout(100);
+  await page.fill("#tk-menu-groups-asetukset", "Ihmiset");
   await page.click('[data-action="themeSave"]'); await page.waitForTimeout(300);
   const m = new Date().getMonth() + 1;
   const expectSpring = m >= 3 && m < 12;

@@ -47,8 +47,10 @@ export const THEME_PRESETS = {
 // Lisää-valikon kohdat ja oletusryhmät (idea 43). Alavalikossa olevat osiot eivät näy Lisää-valikossa.
 export const MENU_KEYS = [
   ...SECTIONS.map(x => [x[0], x[0] === "kulut" ? "Raha" : "Mökki"]),
-  ["kayttajat", "Käyttäjät"], ["profiili", "Käyttäjät"], ["ulkoasu", "Asetukset"], ["yllapito", "Asetukset"]
+  ["asetukset", "Asetukset"]
 ];
+// Asetukset-keskuksen alasivut (idea 17)
+export const SETTINGS_PAGES = ["profiili", "kayttajat", "ulkoasu", "yllapito"];
 export const DEFAULT_THEME = {
   mode: "auto", topbar: "plain",
   light: { ...THEME_PRESETS.metsa.light }, dark: { ...THEME_PRESETS.metsa.dark },
@@ -60,7 +62,8 @@ export const DEFAULT_THEME = {
   seasons: { kevat: 3, talvi: 9 },
   menu: { order: MENU_KEYS.map(m => m[0]), groups: Object.fromEntries(MENU_KEYS.map(m => [m[0], m[1]])) },
   navItems: [...DEFAULT_NAV_ITEMS],
-  fields: {}
+  fields: {},
+  fieldOrder: {}
 };
 // Vuorokaudenajan tervehdys (idea 9): {tervehdys} tekstissä
 export function timeGreeting(d = new Date()) {
@@ -120,6 +123,8 @@ export function mergeTheme(src) {
     const hid = Object.fromEntries(Object.entries(f).filter(([k, v]) => v === true && /^[A-Za-z]{1,30}$/.test(k)));
     if (Object.keys(hid).length) t.fields[form] = hid;
   }
+  if (s.fieldOrder && typeof s.fieldOrder === "object") for (const [form, arr] of Object.entries(s.fieldOrder))
+    if (/^[a-z]{2,20}$/.test(form) && Array.isArray(arr)) t.fieldOrder[form] = arr.filter(n => typeof n === "string" && /^[A-Za-z]{1,30}$/.test(n)).slice(0, 40);
   if (Array.isArray(s.navItems)) t.navItems = [...new Set(s.navItems.filter(k => SECTIONS.some(x => x[0] === k)))].slice(0, NAV_MAX);
   if (Array.isArray(hm.order)) {
     const known = hm.order.flatMap(k => k === "latest" ? ["sweep", "wood"] : [k]).filter(k => HOME_CARDS.some(c => c[0] === k));
@@ -187,13 +192,17 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", previewT
 
 
 export const navKeys = () => ["koti", ...T().navItems, "lisaa"];
-export const backLink = () => navKeys().includes(S.view) ? "" : `<a class="back" href="#lisaa">‹ Lisää</a>`;
+export const backLink = () => navKeys().includes(S.view) ? ""
+  : SETTINGS_PAGES.includes(S.view) ? `<a class="back" href="#asetukset">‹ Asetukset</a>` : `<a class="back" href="#lisaa">‹ Lisää</a>`;
 
 // Adminin piilottamat lomakekentät suodatetaan pois (pakollisia ei koskaan)
-formFilter.fn = (key, fields) => {
-  const hid = T().fields?.[key]; if (!hid) return fields;
-  return fields.filter(f => f.required || !f.name || !hid[f.name]);
-};
+formFilter.fn = (key, fields) => orderFields(key, fields).filter(f => f.required || !f.name || !(T().fields?.[key] || {})[f.name]);
+// Adminin asettama kenttien järjestys (idea 73); järjestämättömät kentät pysyvät alkuperäisellä paikallaan perässä
+export function orderFields(key, fields) {
+  const ord = T().fieldOrder?.[key]; if (!ord?.length) return fields;
+  const pos = f => { const i = ord.indexOf(f.name); return i < 0 ? 1000 + fields.indexOf(f) : i; };
+  return [...fields].sort((a, b) => pos(a) - pos(b));
+}
 // Tumman tilan valmiit taustat (idea 58)
 export const DARK_STYLES = {
   oled: { name: "OLED-musta", bg: "#000000", card: "#0b0b0b", line: "#2a2a2a" },

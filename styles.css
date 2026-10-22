@@ -520,3 +520,34 @@ button.info-dot { border: 0; background: var(--green-l); color: var(--green); bo
 /* ---------- Esikatselu toisena käyttäjänä (166) ---------- */
 .preview-banner { position: fixed; left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); z-index: 90; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--warn); color: #fff; padding: 8px 8px 8px 14px; border-radius: 14px; box-shadow: 0 8px 26px rgba(0,0,0,.3); font-size: .9rem; }
 .preview-banner .btn { background: #fff; color: #222; border-color: transparent; }
+
+/* ---------- Päivämääräkenttä (72) ---------- */
+.datefld { position: relative; display: block; }
+.datefld input[type=date] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 1; }
+.date-show { display: flex; align-items: center; min-height: 46px; padding: 11px 12px; border: 1px solid var(--line); background: var(--bg); border-radius: var(--ri); font-size: max(16px, 1rem); }
+.date-show::after { content: "📅"; margin-left: auto; opacity: .7; }
+.date-show.empty { color: var(--muted); }
+.datefld input[type=date]:focus + .date-show { outline: 2px solid var(--green); outline-offset: -1px; }
+
+/* ---------- Aikavälin valitsin (58–59) ---------- */
+.dr { border: 1px solid var(--line); border-radius: var(--ri); padding: 6px; background: var(--bg); }
+.dr-head { display: flex; justify-content: space-between; align-items: center; }
+.dr-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.dr-w { text-align: center; font-size: .7rem; color: var(--muted); font-weight: 700; padding: 2px 0; }
+.dr-d { position: relative; height: 38px; border: 0; background: transparent; border-radius: 8px; font-weight: 600; cursor: pointer; color: var(--ink); }
+.dr-d.past { opacity: .45; }
+.dr-d.t { box-shadow: inset 0 0 0 1.5px var(--green); }
+.dr-d.in { background: var(--green-l); border-radius: 0; }
+.dr-d.s, .dr-d.e { background: var(--green); color: var(--on-green); }
+.dr-d.s { border-radius: 8px 0 0 8px; } .dr-d.e { border-radius: 0 8px 8px 0; } .dr-d.s.e { border-radius: 8px; }
+.dr-d b { position: absolute; left: 50%; bottom: 4px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; }
+.dr-sum { font-size: .9rem; padding: 4px 2px; }
+.dr-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dr-inputs label { display: grid; gap: 3px; }
+.dr-inputs small { color: var(--muted); font-weight: 600; }
+
+/* ---------- Kenttien järjestys (73), PIN-ohje (131), kalenterin nimet (39) ---------- */
+.t-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.t-field .fld-check { flex: 1; }
+.pin-help { text-align: center; margin-top: 6px; }
+.cal-b.name { white-space: nowrap; text-overflow: ellipsis; padding: 0 2px; font-size: .58rem; }

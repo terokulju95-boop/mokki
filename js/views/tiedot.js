@@ -77,8 +77,9 @@ export function bookingLine(b) {
   const range = b.end && b.end !== b.start ? `${fmtShort(b.start)}–${fmtDate(b.end)}` : fmtDate(b.start);
   return `<div class="line ${isTent(b) ? "tentative-line" : ""}"><span><i class="dot ${isTent(b) ? "tent" : ""}" style="--c:${colorFor(b.who)};background:${colorFor(b.who)}"></i>${esc(b.who)}${isTent(b) ? ' <span class="muted small">(alustava)</span>' : ""}</span><span class="muted">${range}</span></div>`;
 }
-function calChip(b) {
-  return `<span class="cal-b ${isTent(b) ? "tent" : ""}" style="--c:${colorFor(b.who)}">${esc(initials(b.who))}</span>`;
+// Yksi varaus päivällä → koko nimi (katkaistaan tarvittaessa), useampi → nimikirjaimet
+function calChip(b, full = false) {
+  return `<span class="cal-b ${isTent(b) ? "tent" : ""} ${full ? "name" : ""}" style="--c:${colorFor(b.who)}" title="${esc(b.who)}">${esc(full ? b.who : initials(b.who))}</span>`;
 }
 export function vVaraukset() {
   const t = today();
@@ -126,7 +127,7 @@ export function vVaraukset() {
     for (let d = 1; d <= daysIn; d++) {
       const ds = `${Y}-${pad(M)}-${pad(d)}`;
       const bs = onDay(bks, ds);
-      cells += `<button class="cal-cell ${ds === t ? "today" : ""} ${ds < t ? "past" : ""} ${bs.length > 1 ? "clash" : ""}" data-action="calDay" data-date="${ds}" aria-label="${d}. ${MONTHS[M - 1]}${bs.length > 1 ? ", päällekkäisiä varauksia" : ""}"><span class="cal-d">${d}</span><span class="cal-bs">${bs.slice(0, 3).map(calChip).join("")}</span>${bs.length > 1 ? '<span class="clash-ic">⚠</span>' : ""}</button>`;
+      cells += `<button class="cal-cell ${ds === t ? "today" : ""} ${ds < t ? "past" : ""} ${bs.length > 1 ? "clash" : ""}" data-action="calDay" data-date="${ds}" aria-label="${d}. ${MONTHS[M - 1]}${bs.length > 1 ? ", päällekkäisiä varauksia" : ""}"><span class="cal-d">${d}</span><span class="cal-bs">${bs.length === 1 ? calChip(bs[0], true) : bs.slice(0, 3).map(b => calChip(b)).join("")}</span>${bs.length > 1 ? '<span class="clash-ic">⚠</span>' : ""}</button>`;
     }
     h += `<div class="card cal"><div class="cal-head"><button class="icon-btn" data-action="calNav" data-dir="-1" aria-label="Edellinen kuukausi">‹</button><b>${cap(MONTHS[M - 1])} ${Y}</b><button class="icon-btn" data-action="calNav" data-dir="1" aria-label="Seuraava kuukausi">›</button></div>
       <div class="cal-grid">${WD.map(w => `<div class="cal-w">${w}</div>`).join("")}${cells}</div>

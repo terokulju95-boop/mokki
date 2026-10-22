@@ -4,7 +4,7 @@ export default async ({ page, go, text, check, OUT }) => {
   await page.click('[data-action="addBooking"]'); await page.waitForTimeout(200);
   const ds = new Date(Date.now() + 6 * 864e5); const iso = `${ds.getFullYear()}-${String(ds.getMonth() + 1).padStart(2, "0")}-${String(ds.getDate()).padStart(2, "0")}`;
   const de = new Date(Date.now() + 9 * 864e5); const iso2 = `${de.getFullYear()}-${String(de.getMonth() + 1).padStart(2, "0")}-${String(de.getDate()).padStart(2, "0")}`;
-  await page.fill('#modal [name="start"]', iso); await page.fill('#modal [name="end"]', iso2);
+  await page.fill('#modal [name="range_start"]', iso); await page.fill('#modal [name="range_end"]', iso2);
   await page.selectOption('#modal [name="status"]', "alustava");
   await page.fill('#modal [name="people"]', "4");
   await page.fill('#modal [name="guests"]', "Liisa ja lapset");

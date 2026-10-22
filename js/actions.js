@@ -1,3 +1,6 @@
+import { orderFields } from "./theme.js";
+import { FORM_FIELD_NAMES } from "./views/asetukset.js";
+import { colorFor } from "./core.js";
 import { DARK_STYLES } from "./theme.js";
 import { setPhotoMode } from "./core.js";
 import { startData } from "./main.js";
@@ -296,8 +299,7 @@ export function closeLinked(invId) {
 
 export const BOOKING_FIELDS = [
   { name: "who", label: "Kuka", type: "select", required: true, options: () => memberNames() },
-  { name: "start", label: "Saapuminen", type: "date", required: true },
-  { name: "end", label: "Lähtö", type: "date", required: true },
+  { name: "range", label: "Saapuminen ja lähtö", type: "daterange", required: true },
   { name: "status", label: "Tila", type: "select", options: [["varma", "Varma"], ["alustava", "Alustava – ei vielä lukossa"]], def: "varma" },
   { name: "people", label: "Henkilömäärä", type: "number", placeholder: "esim. 4" },
   { name: "guests", label: "Muut mukana / vieraat", placeholder: "esim. Liisa ja lapset, naapurin Matti" },
@@ -308,7 +310,8 @@ export function bookingForm(values, id) {
     formKey: "varaus", title: id ? "Muokkaa varausta" : "Uusi varaus", values,
     fields: [
       { ...BOOKING_FIELDS[0], options: () => { const n = memberNames(); return values.who && !n.includes(values.who) ? [values.who, ...n] : n; } },
-      ...BOOKING_FIELDS.slice(1)
+      { ...BOOKING_FIELDS[1], booked: () => list("bookings").filter(b => b.id !== id).map(b => ({ start: b.start, end: b.end, who: b.who, color: colorFor(b.who) })) },
+      ...BOOKING_FIELDS.slice(2)
     ],
     onSubmit: v => {
       if (v.end < v.start) { alert("Lähtöpäivä ei voi olla ennen saapumista."); return false; }
@@ -428,6 +431,16 @@ Object.assign(ACTIONS, DEVICE_ACTIONS, THEMEVER_ACTIONS, {
 // ---------- Tumma tyyli (58), kuvien lataustapa (182), esikatselu toisena käyttäjänä (166) ----------
 Object.assign(ACTIONS, {
   fieldsForm: d => { S.fieldsForm = d.f; render(); },
+  fieldMove: d => {
+    if (!S.themeDraft) return;
+    const def = FORM_FIELD_NAMES(d.f); if (!def) return;
+    const cur = orderFields(d.f, def.map(n => ({ name: n }))).map(f => f.name);
+    const i = cur.indexOf(d.name), j = i + Number(d.dir);
+    if (i < 0 || j < 0 || j >= cur.length) return;
+    [cur[i], cur[j]] = [cur[j], cur[i]];
+    (S.themeDraft.fieldOrder ??= {})[d.f] = cur; render();
+  },
+  fieldOrderReset: d => { if (S.themeDraft?.fieldOrder) { delete S.themeDraft.fieldOrder[d.f]; render(); } },
   themeDarkStyle: d => {
     const st = DARK_STYLES[d.v]; if (!st || !S.themeDraft) return;
     Object.assign(S.themeDraft.dark, { bg: st.bg, card: st.card, line: st.line });

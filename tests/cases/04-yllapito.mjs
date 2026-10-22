@@ -2,7 +2,9 @@
 import fs from "fs";
 export default async ({ page, go, text, check, db }) => {
   await go(page, "#lisaa");
-  check("Ylläpito Lisää-valikossa", (await text()).includes("Ylläpito"));
+  check("Asetukset Lisää-valikossa", (await text()).includes("Asetukset"));
+  await go(page, "#asetukset");
+  check("Ylläpito Asetuksissa", (await text()).includes("Ylläpito"));
   await go(page, "#yllapito");
   let t = await text();
   check("tietokannan koko näkyy", t.includes("ilmainen raja"));

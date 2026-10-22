@@ -1,3 +1,4 @@
+import { vAsetukset } from "./views/asetukset.js";
 import { photoMode } from "./core.js";
 import { iconSrc, listenIcon } from "./views/teemat.js";
 import { vLaitteet } from "./views/laitteet.js";
@@ -30,6 +31,7 @@ export const VIEWS = {
   profiili: { title: () => "Oma profiili", render: vProfiili },
   ulkoasu: { title: () => "Ulkoasu ja ominaisuudet", render: vUlkoasu },
   yllapito: { title: () => "Ylläpito", render: vYllapito },
+  asetukset: { title: () => "Asetukset", render: vAsetukset },
   laitteet: { title: () => S.deviceOpen ? "Laite" : "Laitteet", render: vLaitteet }
 };
 
@@ -161,6 +163,7 @@ export function showPinPad(name) {
     <div class="pin-dots" id="pin-dots"></div>
     <div class="auth-err" id="pin-err" role="alert"></div>
     <div class="pinpad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"].map(k => `<button class="pin-key ${k.length > 1 ? "fn" : ""}" data-k="${k}" aria-label="${k === "back" ? "Poista" : k === "clear" ? "Tyhjennä" : k}">${k === "back" ? "⌫" : k === "clear" ? "C" : k}</button>`).join("")}</div>
+    ${name !== ADMIN_NAME ? `<p class="form-note pin-help">Unohtuiko PIN? Pyydä pääkäyttäjää (${esc(ADMIN_NAME)}) asettamaan uusi kohdasta Asetukset → Käyttäjät.</p>` : ""}
   </div>`;
   const dots = () => $("#pin-dots").innerHTML = [0, 1, 2, 3].map(i => `<i class="${i < buf.length ? "on" : ""}"></i>`).join("");
   const err = t => $("#pin-err").textContent = t;

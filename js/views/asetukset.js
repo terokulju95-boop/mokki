@@ -1,3 +1,5 @@
+import { SETTINGS_PAGES, orderFields } from "../theme.js";
+const SETTINGS_INFO = { v: null };
 import { DARK_STYLES } from "../theme.js";
 import { LOG_FIELDS } from "./huolto.js";
 import { INV_FIELDS, PAY_FIELDS, REPAIR_FIELDS, CONTACT_FIELDS, BOOKING_FIELDS } from "../actions.js";
@@ -26,12 +28,15 @@ export function vLisaa() {
     ulkoasu: ["🎨", "Ulkoasu ja ominaisuudet", "Värit, tekstit, valikot ja valinnaiset toiminnot"],
     yllapito: ["🗄️", "Ylläpito", S.meta?.lastBackupAt ? "Varmuuskopio, tietokannan koko, arkisto" : "Varmuuskopiota ei ole vielä otettu"]
   };
-  const adminOnly = ["ulkoasu", "yllapito"];
+  // Profiili, käyttäjät, ulkoasu ja ylläpito ovat Asetukset-keskuksessa (idea 17)
+  const warn = (noPin || (isAdmin() && !S.meta?.lastBackupAt));
+  SETTINGS_INFO.v = info; info.asetukset = ["⚙️", "Asetukset", warn ? (noPin ? `${noPin} käyttäjältä puuttuu PIN` : "Varmuuskopiota ei ole vielä otettu") : isAdmin() ? "Profiili, käyttäjät, ulkoasu ja ylläpito" : "Oma profiili ja käyttäjät"];
+  const adminOnly = [];
   const keys = th.menu.order.filter(k => info[k] && !inNav.includes(k) && (isAdmin() || !adminOnly.includes(k)));
   // Peräkkäiset saman ryhmän kohdat samaan laatikkoon
   const groups = [];
   keys.forEach(k => { const g = th.menu.groups[k] || ""; if (!groups.length || groups.at(-1).g !== g) groups.push({ g, keys: [] }); groups.at(-1).keys.push(k); });
-  const item = k => { const [ic, t, d] = info[k]; return `<a class="menu-item" href="#${k}"><span class="menu-ic">${ic}</span><span class="menu-t"><b>${esc(t)}</b><small class="${(k === "kayttajat" && noPin) || (k === "yllapito" && !S.meta?.lastBackupAt) ? "warn" : ""}">${esc(d)}</small></span><span class="chev">›</span></a>`; };
+  const item = k => { const [ic, t, d] = info[k]; return `<a class="menu-item" href="#${k}"><span class="menu-ic">${ic}</span><span class="menu-t"><b>${esc(t)}</b><small class="${(k === "asetukset" && warn) ? "warn" : ""}">${esc(d)}</small></span><span class="chev">›</span></a>`; };
   return groups.map(({ g, keys }) => `${g ? `<div class="menu-group">${esc(g)}</div>` : ""}<div class="menu">${keys.map(item).join("")}</div>`).join("")
     + `<button class="btn ghost block" data-action="switchUser">Vaihda käyttäjää</button>`;
 }
@@ -168,9 +173,11 @@ export function vUlkoasu() {
   h += secH("Lomakkeiden kentät") + `<p class="form-note">Valitse, mitkä kentät näkyvät lomakkeissa kaikille. Pakollisia kenttiä ei voi piilottaa. Piilotetun kentän aiemmin tallennetut tiedot säilyvät.</p>
     <div class="chips">${forms.map(([k, l]) => `<button class="chip-btn ${k === fk ? "on" : ""}" data-action="fieldsForm" data-f="${k}">${esc(l)}${Object.keys(D.fields?.[k] || {}).length ? ` (${Object.keys(D.fields[k]).length} piilossa)` : ""}</button>`).join("")}</div>
     <div class="card t-card"><div class="card-label">${esc(fLabel)}</div>
-    ${fFields.filter(f => f.name && f.type !== "heading" && f.type !== "note").map(f => f.required
-      ? `<label class="fld-check t-dim"><input type="checkbox" checked disabled><span>${esc(f.label)} <small>(pakollinen)</small></span></label>`
-      : tCheck(`fields.${fk}.${f.name}`, f.label, true)).join("")}</div>`;
+    <p class="form-note">Ruksi = kenttä näkyy. Nuolilla vaihdat kenttien järjestystä lomakkeessa.</p>
+    ${(() => { const list = orderFields(fk, fFields).filter(f => f.name && f.type !== "heading" && f.type !== "note"); return list.map((f, i) => `<div class="t-field">
+      ${f.required ? `<label class="fld-check t-dim"><input type="checkbox" checked disabled><span>${esc(f.label)} <small>(pakollinen)</small></span></label>` : tCheck(`fields.${fk}.${f.name}`, f.label, true)}
+      <span class="order-btns"><button class="icon-btn" data-action="fieldMove" data-f="${fk}" data-name="${f.name}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="fieldMove" data-f="${fk}" data-name="${f.name}" data-dir="1" ${i === list.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span></div>`).join(""); })()}
+    ${D.fieldOrder?.[fk]?.length ? `<button class="btn ghost small" data-action="fieldOrderReset" data-f="${fk}">Palauta oletusjärjestys</button>` : ""}</div>`;
 
   // Alavalikko
   const inNav = D.navItems, rest = SECTIONS.filter(x => !inNav.includes(x[0]));
@@ -232,3 +239,13 @@ export function onThemeInput(e) {
 }
 document.addEventListener("input", onThemeInput);
 document.addEventListener("change", onThemeInput);
+
+// ---------- Asetukset-keskus (idea 17) ----------
+export function vAsetukset() {
+  vLisaa(); // täyttää SETTINGS_INFO-tiedot (otsikot ja tilat)
+  const info = SETTINGS_INFO.v;
+  const pages = SETTINGS_PAGES.filter(k => isAdmin() || !["ulkoasu", "yllapito"].includes(k));
+  const warnOf = k => (k === "kayttajat" && isAdmin() && S.users.some(u => !S.pins[u])) || (k === "yllapito" && !S.meta?.lastBackupAt);
+  return `<a class="back" href="#lisaa">‹ Lisää</a><div class="menu">${pages.map(k => { const [ic, t, d] = info[k]; return `<a class="menu-item" href="#${k}"><span class="menu-ic">${ic}</span><span class="menu-t"><b>${esc(t)}</b><small class="${warnOf(k) ? "warn" : ""}">${esc(d)}</small></span><span class="chev">›</span></a>`; }).join("")}</div>`;
+}
+export const FORM_FIELD_NAMES = key => { const f = FORM_DEFS().find(x => x[0] === key); return f ? f[2].filter(x => x.name && x.type !== "heading" && x.type !== "note").map(x => x.name) : null; };

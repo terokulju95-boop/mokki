@@ -281,6 +281,13 @@ export function fieldHtml(f, v) {
       const input = `<input name="${f.name}" type="text" inputmode="decimal" value="${val}" ${req} ${money ? 'data-money="1" placeholder="0,00"' : ph}>`;
       return `<label class="fld"><span>${esc(money ? f.label.replace(/\s*\(€\)/, "") : f.label)}</span>${money ? `<span class="money">${input}<i>€</i></span>` : input}</label>`;
     }
+    case "date": return `<label class="fld"><span>${esc(f.label)}</span>${dateInput(f.name, v, req)}</label>`;
+    case "daterange": {
+      // Saapuminen ja lähtö yhdestä kalenterista (ideat 58–59)
+      const r = v || {};
+      return `<div class="fld" data-range="${f.name}"><span>${esc(f.label)}</span><div class="dr" data-start="${esc(r.start || "")}" data-end="${esc(r.end || "")}"></div><div class="dr-sum"></div>
+        <div class="dr-inputs"><label><small>Saapuminen</small>${dateInput(f.name + "_start", r.start, req)}</label><label><small>Lähtö</small>${dateInput(f.name + "_end", r.end, req)}</label></div></div>`;
+    }
     default: {
       const listId = f.list ? `dl_${f.name}` : "";
       return `<label class="fld"><span>${esc(f.label)}</span><input name="${f.name}" type="${f.type || "text"}" value="${esc(v ?? "")}" ${req} ${ph} ${f.list ? `list="${listId}"` : ""} autocomplete="off"></label>${f.list ? `<datalist id="${listId}">${f.list.map(o => `<option value="${esc(o)}">`).join("")}</datalist>` : ""}`;
@@ -296,7 +303,8 @@ export function openForm({ title, fields, values = {}, onSubmit, onDelete, submi
   const photoState = {};
   const added = new Set();
   let finished = false;
-  const initial = f => values[f.name] !== undefined && values[f.name] !== null ? values[f.name] : (typeof f.def === "function" ? f.def() : f.def);
+  const initial = f => f.type === "daterange" ? { start: values.start || "", end: values.end || "" }
+    : values[f.name] !== undefined && values[f.name] !== null ? values[f.name] : (typeof f.def === "function" ? f.def() : f.def);
 
   m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-mclose aria-label="Sulje">✕</button></div>
@@ -312,6 +320,7 @@ export function openForm({ title, fields, values = {}, onSubmit, onDelete, submi
   };
   fields.filter(f => f.type === "photos").forEach(f => { photoState[f.name] = [...(values[f.name] || [])]; drawPhotos(f.name); });
 
+  fields.filter(f => f.type === "daterange").forEach(f => setupRange(m.querySelector(`[data-range="${f.name}"]`), f));
   m.querySelectorAll("input[data-pfield]").forEach(inp => inp.addEventListener("change", async () => {
     const name = inp.dataset.pfield;
     for (const file of inp.files) {
@@ -350,6 +359,11 @@ export function openForm({ title, fields, values = {}, onSubmit, onDelete, submi
     for (const f of fields) {
       if (f.type === "heading" || f.type === "note") continue;
       if (f.type === "photos") { out[f.name] = photoState[f.name]; continue; }
+      if (f.type === "daterange") {
+        out.start = form.elements[f.name + "_start"].value; out.end = form.elements[f.name + "_end"].value || out.start;
+        if (!out.start) { alert("Valitse saapumispäivä kalenterista."); return; }
+        continue;
+      }
       const el = form.elements[f.name];
       if (f.type === "checkbox") out[f.name] = el.checked;
       else if (f.type === "number") out[f.name] = el.value.trim() === "" ? null : num(el.value);
@@ -395,3 +409,70 @@ document.addEventListener("focusout", e => {
   const n = num(el.value);
   if (isFinite(n)) el.value = fmtMoney(n);
 });
+
+// ---------- Päivämääräkenttä suomalaisella näytöllä (idea 72) ----------
+// Selaimen oma päivämäärävalitsin pysyy käytössä, mutta arvo näytetään aina muodossa "ti 30.9.2026".
+const WD_SHORT = ["su", "ma", "ti", "ke", "to", "pe", "la"];
+export const fmtDateLong = s => s ? `${WD_SHORT[parseYmd(s).getDay()]} ${fmtDate(s)}` : "";
+export function dateInput(name, v, req = "") {
+  return `<span class="datefld"><input name="${name}" type="date" value="${esc(v || "")}" ${req}><span class="date-show ${v ? "" : "empty"}">${v ? fmtDateLong(v) : "Valitse päivä"}</span></span>`;
+}
+function syncDateShow(inp) {
+  const show = inp.parentElement?.querySelector(".date-show"); if (!show) return;
+  show.textContent = inp.value ? fmtDateLong(inp.value) : "Valitse päivä";
+  show.classList.toggle("empty", !inp.value);
+}
+document.addEventListener("input", e => { if (e.target.type === "date") syncDateShow(e.target); });
+document.addEventListener("change", e => { if (e.target.type === "date") syncDateShow(e.target); });
+
+// ---------- Aikavälin valitsin (ideat 58–59) ----------
+// Napauta saapumispäivä ja sitten lähtöpäivä – tai vedä sormella saapumisesta lähtöön.
+// Kalenterissa näkyvät myös muiden varaukset (f.booked), jotta vapaat päivät näkee heti.
+function setupRange(box, f) {
+  if (!box) return;
+  const grid = box.querySelector(".dr"), sum = box.querySelector(".dr-sum");
+  const inS = box.querySelector(`[name="${f.name}_start"]`), inE = box.querySelector(`[name="${f.name}_end"]`);
+  const st = { start: grid.dataset.start || "", end: grid.dataset.end || "", month: (grid.dataset.start || today()).slice(0, 7), drag: null, waitingEnd: false };
+  const booked = typeof f.booked === "function" ? f.booked() : [];
+  const MONTHS_FI = ["Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu", "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"];
+  const set = (a, b) => { [st.start, st.end] = a <= b ? [a, b] : [b, a]; inS.value = st.start; inE.value = st.end; syncDateShow(inS); syncDateShow(inE); draw(); };
+  function draw() {
+    const [Y, M] = st.month.split("-").map(Number);
+    const off = (new Date(Y, M - 1, 1).getDay() + 6) % 7, dim = new Date(Y, M, 0).getDate(), t = today();
+    let cells = "";
+    for (let i = 0; i < off; i++) cells += "<i></i>";
+    for (let d = 1; d <= dim; d++) {
+      const ds = `${Y}-${pad(M)}-${pad(d)}`;
+      const inR = st.start && ds >= st.start && ds <= (st.end || st.start);
+      const bk = booked.filter(b => b.start <= ds && (b.end || b.start) >= ds);
+      cells += `<button type="button" class="dr-d ${inR ? "in" : ""} ${ds === st.start ? "s" : ""} ${ds === (st.end || st.start) ? "e" : ""} ${ds === t ? "t" : ""} ${ds < t ? "past" : ""}" data-ds="${ds}">${d}${bk.length ? `<b style="background:${bk[0].color || "var(--rust)"}" title="${esc(bk.map(b => b.who).join(", "))}"></b>` : ""}</button>`;
+    }
+    grid.innerHTML = `<div class="dr-head"><button type="button" class="icon-btn" data-drnav="-1" aria-label="Edellinen kuukausi">‹</button><b>${MONTHS_FI[M - 1]} ${Y}</b><button type="button" class="icon-btn" data-drnav="1" aria-label="Seuraava kuukausi">›</button></div>
+      <div class="dr-grid">${["ma", "ti", "ke", "to", "pe", "la", "su"].map(w => `<span class="dr-w">${w}</span>`).join("")}${cells}</div>`;
+    const n = st.start && st.end ? daysBetween(st.start, st.end) : 0;
+    const busy = st.start ? booked.filter(b => b.start <= (st.end || st.start) && (b.end || b.start) >= st.start) : [];
+    sum.innerHTML = !st.start ? '<span class="muted">Napauta saapumispäivä ja sitten lähtöpäivä – tai vedä sormella.</span>'
+      : `<b>${fmtDateLong(st.start)}</b> → <b>${fmtDateLong(st.end || st.start)}</b> · <b>${n === 0 ? "päiväkäynti" : n === 1 ? "1 yö" : n + " yötä"}</b>${st.waitingEnd ? ' <span class="muted">– napauta lähtöpäivä</span>' : ""}${busy.length ? `<div class="warn small">⚠ Päällekkäin: ${busy.map(b => esc(b.who)).join(", ")}</div>` : ""}`;
+  }
+  const dayAt = (x, y) => document.elementFromPoint(x, y)?.closest?.(".dr-d");
+  grid.addEventListener("click", e => { const nv = e.target.closest("[data-drnav]"); if (nv) { const d = parseYmd(st.month + "-01"); d.setMonth(d.getMonth() + Number(nv.dataset.drnav)); st.month = ymd(d).slice(0, 7); draw(); } });
+  grid.addEventListener("pointerdown", e => {
+    const c = e.target.closest(".dr-d"); if (!c) return;
+    e.preventDefault();
+    const ds = c.dataset.ds;
+    if (st.waitingEnd && ds >= st.start) { st.waitingEnd = false; set(st.start, ds); return; }
+    st.drag = ds; st.moved = false; st.waitingEnd = true; set(ds, ds);
+    grid.setPointerCapture?.(e.pointerId);
+  });
+  grid.addEventListener("pointermove", e => {
+    if (!st.drag) return;
+    const c = dayAt(e.clientX, e.clientY); if (!c || c.dataset.ds === st.end && st.start === st.drag) return;
+    if (c.dataset.ds !== st.drag) { st.moved = true; st.waitingEnd = false; }
+    set(st.drag, c.dataset.ds);
+  });
+  // Piirretään uudelleen vain, jos päiviä valittiin – muuten kuukauden vaihtonappi ehtisi kadota ennen klikkausta
+  const up = () => { if (!st.drag) return; st.drag = null; if (st.moved) st.waitingEnd = false; draw(); };
+  grid.addEventListener("pointerup", up); grid.addEventListener("pointercancel", up);
+  [inS, inE].forEach(i => i.addEventListener("change", () => { st.waitingEnd = false; if (inS.value) { st.month = inS.value.slice(0, 7); set(inS.value, inE.value && inE.value >= inS.value ? inE.value : inS.value); } }));
+  draw();
+}
