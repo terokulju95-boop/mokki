@@ -31,7 +31,7 @@ const USERS_DOC = () => doc(db, "app", "users");
 const COLS = ["logs", "todos", "checkItems", "seasonRuns", "inventory", "shopping",
   "payments", "repairs", "bookings", "info", "contacts", "places"];
 
-const VIEW_PARENT = { perustiedot: "lisaa", varaukset: "lisaa", korjaukset: "lisaa", kayttajat: "lisaa", profiili: "lisaa" };
+const VIEW_PARENT = { perustiedot: "lisaa", varaukset: "lisaa", korjaukset: "lisaa", kayttajat: "lisaa", profiili: "lisaa", ulkoasu: "lisaa" };
 
 const ICONS = {
   koti: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
@@ -92,7 +92,8 @@ const PLACE_SUGGESTIONS = ["Sähkökaappi", "Vesijohdon pääsulku", "Tyhjennysv
 // ---------- Tila ----------
 const S = {
   user: null, me: null, users: [...DEFAULT_USERS], pins: {}, usersLoaded: false, d: {}, view: "koti", tab: {}, unsubs: [], started: false,
-  expanded: new Set(), openDetails: new Set(), editOrder: false, calMonth: null, kulutYear: null, pendingName: null
+  expanded: new Set(), openDetails: new Set(), editOrder: false, calMonth: null, kulutYear: null, pendingName: null,
+  theme: null, themeDraft: null, themePal: "light", themeMeta: null
 };
 const photoCache = new Map();
 
@@ -216,6 +217,146 @@ function toast(msg, isErr = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "toast", isErr ? 5000 : 2500);
 }
 
+// =============================================================
+//  ULKOASU (teema) – pääkäyttäjä muokkaa, näkyy kaikille
+//  Tallennetaan Firestoreen app/theme. Laite muistaa viimeisimmän
+//  teeman, jotta se näkyy heti käynnistyksessä ja ilman verkkoa.
+// =============================================================
+const THEME_DOC = () => doc(db, "app", "theme");
+const THEME_KEY = "mokki_theme";
+const HOME_CARDS = [
+  ["notice", "Tiedote", true], ["address", "Mökin osoite", true], ["bookings", "Mökillä", true],
+  ["season", "Kausilista kesken", true], ["latest", "Edellinen nuohous ja puut", false],
+  ["todos", "Tehtävät", true], ["shopping", "Vie mukana seuraavalla kerralla", true], ["payments", "Maksut erääntymässä", true]
+];
+const NAV_DEFAULTS = Object.fromEntries(NAV);
+const COLOR_FIELDS = [
+  ["bg", "Taustaväri"], ["card", "Korttien väri"], ["ink", "Tekstin väri"], ["head", "Otsikoiden väri"],
+  ["muted", "Himmeä teksti"], ["label", "Korttien pienet otsikot"], ["line", "Reunaviivat"],
+  ["primary", "Pääväri (painikkeet, valinnat)"], ["accent", "Korostusväri (kulupylväät)"],
+  ["ok", "Kunnossa / OK"], ["warn", "Varoitus"], ["bad", "Virhe / myöhässä"]
+];
+const FONTS = {
+  system: ["Järjestelmän oletus", 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'],
+  rounded: ["Pyöreä", 'ui-rounded, "SF Pro Rounded", Nunito, "Varela Round", system-ui, sans-serif'],
+  modern: ["Moderni", '"Avenir Next", Avenir, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif'],
+  serif: ["Klassinen (serif)", '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif']
+};
+const DENSITY = { compact: ["Tiivis", 10, 12, 8], normal: ["Normaali", 14, 16, 12], roomy: ["Väljä", 18, 20, 16] };
+const SHADOWS = { none: "Ei varjoa", soft: "Pehmeä", strong: "Voimakas" };
+const HEAD_WEIGHTS = [[500, "Kevyt"], [600, "Puolilihava"], [700, "Lihava"], [800, "Erittäin lihava"]];
+const STATUS_COLORS = { light: { ok: "#2f7d4f", warn: "#8f620f", bad: "#b3402e" }, dark: { ok: "#82d1a1", warn: "#e6b95e", bad: "#f08c7a" } };
+const mkPal = (m, bg, card, ink, muted, line, primary, accent) => ({ bg, card, ink, head: ink, muted, label: muted, line, primary, accent, ...STATUS_COLORS[m] });
+const THEME_PRESETS = {
+  metsa: { name: "Metsä", light: mkPal("light", "#f3f0e8", "#fffdf8", "#1d2721", "#6a736c", "#e3ddd0", "#2f5d46", "#b8622f"), dark: mkPal("dark", "#121814", "#1b231e", "#e8ece6", "#9aa59c", "#2b3530", "#74b391", "#e09463") },
+  jarvi: { name: "Järvi", light: mkPal("light", "#eef2f5", "#fbfdff", "#1a2530", "#5f6d7a", "#d9e1e8", "#2d5f8a", "#c27a2c"), dark: mkPal("dark", "#10161c", "#18212a", "#e6edf3", "#93a2b0", "#273340", "#7fb2de", "#e3a35f") },
+  sauna: { name: "Sauna", light: mkPal("light", "#f6efe6", "#fffaf3", "#2a1f18", "#76675a", "#e8dccd", "#8a4b2a", "#3f6b4f"), dark: mkPal("dark", "#1a1410", "#241c16", "#f1e8de", "#b0a191", "#3a2e25", "#e0a17a", "#8fc3a1") },
+  graniitti: { name: "Graniitti", light: mkPal("light", "#f2f2f0", "#ffffff", "#1c1d1f", "#686b70", "#e0e0dc", "#3b4a5a", "#a87f1e"), dark: mkPal("dark", "#121314", "#1c1d1f", "#ececea", "#9a9da1", "#2c2e31", "#a9b8c8", "#e0bd62") },
+  kanerva: { name: "Kanerva", light: mkPal("light", "#f5f1f4", "#fffcfe", "#261c24", "#715f6c", "#e7dce4", "#7a3f6e", "#2f7d74"), dark: mkPal("dark", "#161115", "#20181f", "#efe6ed", "#a898a4", "#352a33", "#d39bc6", "#78c8bd") }
+};
+const DEFAULT_THEME = {
+  mode: "auto", topbar: "plain",
+  light: { ...THEME_PRESETS.metsa.light }, dark: { ...THEME_PRESETS.metsa.dark },
+  shape: { radius: 16, btnRadius: 12, inputRadius: 11, border: 1, shadow: "soft", density: "normal" },
+  type: { scale: 100, font: "system", headFont: "system", titleSize: 1.25, headWeight: 700, labelCaps: true },
+  text: { appName: CABIN_NAME, tagline: "Perheen yhteinen mökkikirja", greeting: "Hei, {nimi}!", notice: "", nav: { ...NAV_DEFAULTS } },
+  home: { order: HOME_CARDS.map(c => c[0]), hidden: {}, titles: {} }
+};
+const T = () => S.themeDraft || S.theme || DEFAULT_THEME;
+const appName = () => T().text.appName || CABIN_NAME;
+const homeTitle = k => T().home.titles[k] || HOME_CARDS.find(c => c[0] === k)[1];
+
+// Tarkistetaan kaikki arvot, koska ne päätyvät jokaisen laitteen tyyleihin.
+function mergeTheme(src) {
+  const t = structuredClone(DEFAULT_THEME);
+  const s = src && typeof src === "object" ? src : {};
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const oneOf = (v, arr, def) => arr.includes(v) ? v : def;
+  const numIn = (v, a, b, def) => typeof v === "number" && isFinite(v) && v >= a && v <= b ? v : def;
+  const str = (v, def, max = 200) => typeof v === "string" ? v.slice(0, max) : def;
+  t.mode = oneOf(s.mode, ["auto", "light", "dark"], t.mode);
+  t.topbar = oneOf(s.topbar, ["plain", "color"], t.topbar);
+  for (const m of ["light", "dark"]) for (const k of Object.keys(t[m])) if (HEX.test(s[m]?.[k] || "")) t[m][k] = s[m][k].toLowerCase();
+  const sh = s.shape || {}, ty = s.type || {}, tx = s.text || {}, hm = s.home || {};
+  t.shape.radius = numIn(sh.radius, 0, 40, t.shape.radius);
+  t.shape.btnRadius = numIn(sh.btnRadius, 0, 30, t.shape.btnRadius);
+  t.shape.inputRadius = numIn(sh.inputRadius, 0, 30, t.shape.inputRadius);
+  t.shape.border = numIn(sh.border, 0, 4, t.shape.border);
+  t.shape.shadow = oneOf(sh.shadow, Object.keys(SHADOWS), t.shape.shadow);
+  t.shape.density = oneOf(sh.density, Object.keys(DENSITY), t.shape.density);
+  t.type.scale = numIn(ty.scale, 80, 140, t.type.scale);
+  t.type.font = oneOf(ty.font, Object.keys(FONTS), t.type.font);
+  t.type.headFont = oneOf(ty.headFont, Object.keys(FONTS), t.type.headFont);
+  t.type.titleSize = numIn(ty.titleSize, 0.9, 2.2, t.type.titleSize);
+  t.type.headWeight = oneOf(ty.headWeight, HEAD_WEIGHTS.map(w => w[0]), t.type.headWeight);
+  if (typeof ty.labelCaps === "boolean") t.type.labelCaps = ty.labelCaps;
+  t.text.appName = str(tx.appName, t.text.appName, 40);
+  t.text.tagline = str(tx.tagline, t.text.tagline, 100);
+  t.text.greeting = str(tx.greeting, t.text.greeting, 100);
+  t.text.notice = str(tx.notice, "", 2000);
+  for (const k of Object.keys(NAV_DEFAULTS)) t.text.nav[k] = str(tx.nav?.[k], NAV_DEFAULTS[k], 14);
+  if (Array.isArray(hm.order)) {
+    const known = hm.order.filter(k => HOME_CARDS.some(c => c[0] === k));
+    t.home.order = [...new Set([...known, ...t.home.order])];
+  }
+  for (const [k] of HOME_CARDS) {
+    if (hm.hidden?.[k] === true) t.home.hidden[k] = true;
+    if (typeof hm.titles?.[k] === "string" && hm.titles[k].trim()) t.home.titles[k] = hm.titles[k].slice(0, 60);
+  }
+  return t;
+}
+
+function lum(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [n >> 16, (n >> 8) & 255, n & 255].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+}
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const onColor = c => contrast(c, "#ffffff") >= contrast(c, "#111111") ? "#ffffff" : "#111111";
+
+function themeCss(t) {
+  const sh = t.shape, ty = t.type, dn = DENSITY[sh.density] || DENSITY.normal;
+  const shadow = dark => sh.shadow === "none" ? "none"
+    : sh.shadow === "strong" ? (dark ? "0 6px 22px rgba(0,0,0,.45)" : "0 2px 4px rgba(30,40,30,.08), 0 12px 30px rgba(30,40,30,.12)")
+      : (dark ? "none" : "0 1px 2px rgba(30,40,30,.06), 0 6px 18px rgba(30,40,30,.05)");
+  const vars = (p, dark) => {
+    const tint = (c, n) => `color-mix(in srgb, ${c} ${n}%, ${p.card})`;
+    return `--bg:${p.bg};--card:${p.card};--ink:${p.ink};--head:${p.head};--muted:${p.muted};--label:${p.label};--line:${p.line};` +
+      `--green:${p.primary};--green-d:${p.primary};--green-l:${tint(p.primary, 14)};--on-green:${onColor(p.primary)};--rust:${p.accent};` +
+      `--bad:${p.bad};--bad-l:${tint(p.bad, 16)};--warn:${p.warn};--warn-l:${tint(p.warn, 16)};--ok:${p.ok};--ok-l:${tint(p.ok, 16)};` +
+      `--shadow:${shadow(dark)};color-scheme:${dark ? "dark" : "light"};`;
+  };
+  const shared = `--r:${sh.radius}px;--rb:${sh.btnRadius}px;--ri:${sh.inputRadius}px;--bw:${sh.border}px;` +
+    `--pad-y:${dn[1]}px;--pad-x:${dn[2]}px;--gap:${dn[3]}px;` +
+    `--font:${FONTS[ty.font][1]};--font-head:${FONTS[ty.headFont][1]};--head-w:${ty.headWeight};` +
+    `--label-tt:${ty.labelCaps ? "uppercase" : "none"};--title-size:${ty.titleSize}rem;`;
+  const dark = vars(t.dark, true);
+  return `:root{${shared}${vars(t.light, false)}}html{font-size:${ty.scale}%}` +
+    `@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${dark}}}:root[data-theme="dark"]{${dark}}`;
+}
+
+// force = "light"/"dark" esikatselussa (näytetään muokattava paletti)
+function applyTheme(t, force) {
+  let el = document.getElementById("theme-style");
+  if (!el) { el = document.createElement("style"); el.id = "theme-style"; document.head.appendChild(el); }
+  el.textContent = themeCss(t);
+  const root = document.documentElement;
+  const mode = force || t.mode;
+  if (mode === "light" || mode === "dark") root.dataset.theme = mode; else delete root.dataset.theme;
+  root.dataset.topbar = t.topbar;
+  const dark = mode === "dark" || (mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  const p = dark ? t.dark : t.light;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t.topbar === "color" ? p.primary : p.bg);
+}
+const previewTheme = () => applyTheme(T(), S.themeDraft ? S.themePal : null);
+const themeDirty = () => !!S.themeDraft && JSON.stringify(S.themeDraft) !== JSON.stringify(S.theme);
+function cacheTheme() { try { localStorage.setItem(THEME_KEY, JSON.stringify(S.theme)); } catch { } }
+function discardThemeDraft() { if (!S.themeDraft) return; S.themeDraft = null; applyTheme(S.theme); }
+
+S.theme = (() => { try { return mergeTheme(JSON.parse(localStorage.getItem(THEME_KEY) || "{}")); } catch { return mergeTheme({}); } })();
+applyTheme(S.theme);
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", previewTheme);
+
 // ---------- Lomake-ikkuna ----------
 function fieldHtml(f, v) {
   const req = f.required ? "required" : "";
@@ -337,55 +478,67 @@ const chip = (t, cls = "") => `<span class="chip ${cls}">${t}</span>`;
 // =============================================================
 
 // ---------- Koti ----------
-function vKoti() {
-  const info = getInfo(); const t = today();
-  let h = `<div class="hello">Hei, ${esc(S.me.name)}!</div>`;
-
-  // Hätätilanne
-  const addr = info.rescueAddress || info.address;
-  h += `<div class="card emergency">
-    <div class="card-label">Hätätilanteessa · 112</div>
-    ${addr ? `<div class="big">${esc(addr)}</div>${info.municipality ? `<div>${esc(info.municipality)}</div>` : ""}${info.coords ? `<div class="muted small">Koordinaatit ${esc(info.coords)}</div>` : ""}`
-      : `<div class="muted">Mökin osoitetta ei ole vielä lisätty.</div>`}
-    <div class="row-btns"><a class="btn danger" href="tel:112">Soita 112</a>${addr ? `<button class="btn" data-action="copy" data-text="${esc(addr + (info.municipality ? ", " + info.municipality : ""))}">Kopioi osoite</button>` : `<a class="btn" href="#perustiedot">Lisää osoite</a>`}</div>
-  </div>`;
-
-  // Varaukset
-  const bks = list("bookings").filter(b => (b.end || b.start) >= t).sort((a, b) => a.start.localeCompare(b.start));
-  const now = bks.filter(b => b.start <= t);
-  h += `<a class="card link" href="#varaukset"><div class="card-label">Mökillä</div>${now.length ? `<div class="big">Nyt: ${now.map(b => esc(b.who)).join(", ")}</div>` : ""}${bks.filter(b => b.start > t).slice(0, 3).map(bookingLine).join("") || (now.length ? "" : '<div class="muted">Ei tulevia varauksia.</div>')}</a>`;
-
-  // Kausilistat
-  ["talvi", "kevat"].forEach(season => {
-    const run = currentRun(season); if (!run) return;
-    const items = seasonItems(season); if (!items.length) return;
+// Etusivun kortit. Pääkäyttäjä voi järjestää, piilottaa ja nimetä ne (Lisää → Ulkoasu).
+const HOME_RENDER = {
+  notice: () => {
+    const n = T().text.notice.trim();
+    return n ? `<div class="card notice"><div class="card-label">${esc(homeTitle("notice"))}</div><p class="notes">${nl2br(n)}</p></div>` : "";
+  },
+  address: () => {
+    const info = getInfo();
+    const addr = info.rescueAddress || info.address;
+    const full = addr ? addr + (info.municipality ? ", " + info.municipality : "") : "";
+    const mapQ = info.coords || full;
+    return `<div class="card"><div class="card-label">${esc(homeTitle("address"))}</div>
+      ${addr ? `<div class="big">${esc(addr)}</div>${info.municipality ? `<div>${esc(info.municipality)}</div>` : ""}${info.coords ? `<div class="muted small">Koordinaatit ${esc(info.coords)}</div>` : ""}`
+        : `<div class="muted">Mökin osoitetta ei ole vielä lisätty.</div>`}
+      <div class="row-btns">${addr
+        ? `<button class="btn" data-action="copy" data-text="${esc(full)}">Kopioi osoite</button><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQ)}">Avaa kartalla</a>`
+        : `<a class="btn" href="#perustiedot">Lisää osoite</a>`}</div>
+    </div>`;
+  },
+  bookings: () => {
+    const t = today();
+    const bks = list("bookings").filter(b => (b.end || b.start) >= t).sort((a, b) => a.start.localeCompare(b.start));
+    const now = bks.filter(b => b.start <= t);
+    return `<a class="card link" href="#varaukset"><div class="card-label">${esc(homeTitle("bookings"))}</div>${now.length ? `<div class="big">Nyt: ${now.map(b => esc(b.who)).join(", ")}</div>` : ""}${bks.filter(b => b.start > t).slice(0, 3).map(bookingLine).join("") || (now.length ? "" : '<div class="muted">Ei tulevia varauksia.</div>')}</a>`;
+  },
+  season: () => ["talvi", "kevat"].map(season => {
+    const run = currentRun(season); if (!run) return "";
+    const items = seasonItems(season); if (!items.length) return "";
     const done = items.filter(i => run.completed?.[i.id]).length;
-    if (done === items.length) return;
-    h += `<a class="card link" href="#kausi" data-action="tab" data-view="kausi" data-tab="${season}"><div class="card-label">Kausilista kesken</div><div class="run-head"><div class="big">${esc(run.label)}</div><div class="pct">${done}/${items.length}</div></div><div class="bar"><i style="width:${Math.round(done / items.length * 100)}%"></i></div></a>`;
-  });
+    if (done === items.length) return "";
+    return `<a class="card link" href="#kausi" data-action="tab" data-view="kausi" data-tab="${season}"><div class="card-label">${esc(homeTitle("season"))}</div><div class="run-head"><div class="big">${esc(run.label)}</div><div class="pct">${done}/${items.length}</div></div><div class="bar"><i style="width:${Math.round(done / items.length * 100)}%"></i></div></a>`;
+  }).join(""),
+  latest: () => {
+    const lastOf = type => list("logs").filter(l => l.type === type).sort(byDateDesc)[0];
+    const sw = lastOf("nuohous"), wd = lastOf("puut");
+    return `<div class="grid2">
+      <a class="card link small-card" href="#huolto" data-action="tab" data-view="huolto" data-tab="nuohous"><div class="card-label">Edellinen nuohous</div>${sw ? `<div class="big">${fmtDate(sw.date)}</div><div class="muted small">${ago(sw.date)}${sw.cost ? " · " + eur(sw.cost) : ""}${sw.doer === "itse" ? " · itse" : ""}</div>` : '<div class="muted">Ei kirjattu</div>'}</a>
+      <a class="card link small-card" href="#huolto" data-action="tab" data-view="huolto" data-tab="puut"><div class="card-label">Edelliset puut</div>${wd ? `<div class="big">${fmtDate(wd.date)}</div><div class="muted small">${wd.amount ? fmtNum(wd.amount) + " " + esc(wd.unit || "") : ""}${wd.cost ? " · " + eur(wd.cost) : ""}</div>` : '<div class="muted">Ei kirjattu</div>'}</a>
+    </div>`;
+  },
+  todos: () => {
+    const todos = openTodos();
+    return `<div class="card"><div class="card-label row-between"><span>${esc(homeTitle("todos"))} (${todos.length})</span><a href="#huolto" data-action="tab" data-view="huolto" data-tab="tehtavat">Kaikki ›</a></div>${todos.length ? `<div class="list flat">${todos.slice(0, 5).map(todoRow).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>'}</div>`;
+  },
+  shopping: () => {
+    const shop = list("shopping").filter(s => !s.done);
+    return `<a class="card link" href="#tavarat" data-action="tab" data-view="tavarat" data-tab="vie"><div class="card-label">${esc(homeTitle("shopping"))} (${shop.length})</div>${shop.length ? `<div class="chips">${shop.slice(0, 10).map(s => chip(esc(s.text))).join("")}${shop.length > 10 ? chip("+" + (shop.length - 10)) : ""}</div>` : '<div class="muted">Ei mitään muistettavaa.</div>'}</a>`;
+  },
+  payments: () => {
+    const t = today(); const limit = addMonths(t, 1);
+    const due = list("payments").filter(p => !p.paid && p.date && p.date <= limit).sort((a, b) => a.date.localeCompare(b.date));
+    return due.length ? `<a class="card link" href="#kulut"><div class="card-label">${esc(homeTitle("payments"))}</div>${due.slice(0, 5).map(p => `<div class="line"><span>${esc(p.name)}</span><span class="${p.date < t ? "bad" : ""}">${eur(p.amount)} · ${fmtShort(p.date)}</span></div>`).join("")}</a>` : "";
+  }
+};
 
-  // Viimeisimmät
-  const lastOf = type => list("logs").filter(l => l.type === type).sort(byDateDesc)[0];
-  const sw = lastOf("nuohous"), wd = lastOf("puut");
-  h += `<div class="grid2">
-    <a class="card link small-card" href="#huolto" data-action="tab" data-view="huolto" data-tab="nuohous"><div class="card-label">Edellinen nuohous</div>${sw ? `<div class="big">${fmtDate(sw.date)}</div><div class="muted small">${ago(sw.date)}${sw.cost ? " · " + eur(sw.cost) : ""}${sw.doer === "itse" ? " · itse" : ""}</div>` : '<div class="muted">Ei kirjattu</div>'}</a>
-    <a class="card link small-card" href="#huolto" data-action="tab" data-view="huolto" data-tab="puut"><div class="card-label">Edelliset puut</div>${wd ? `<div class="big">${fmtDate(wd.date)}</div><div class="muted small">${wd.amount ? fmtNum(wd.amount) + " " + esc(wd.unit || "") : ""}${wd.cost ? " · " + eur(wd.cost) : ""}</div>` : '<div class="muted">Ei kirjattu</div>'}</a>
-  </div>`;
-
-  // Tehtävät
-  const todos = openTodos();
-  h += `<div class="card"><div class="card-label row-between"><span>Tehtävät (${todos.length})</span><a href="#huolto" data-action="tab" data-view="huolto" data-tab="tehtavat">Kaikki ›</a></div>${todos.length ? `<div class="list flat">${todos.slice(0, 5).map(todoRow).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>'}</div>`;
-
-  // Vie mukana
-  const shop = list("shopping").filter(s => !s.done);
-  h += `<a class="card link" href="#tavarat" data-action="tab" data-view="tavarat" data-tab="vie"><div class="card-label">Vie mukana seuraavalla kerralla (${shop.length})</div>${shop.length ? `<div class="chips">${shop.slice(0, 10).map(s => chip(esc(s.text))).join("")}${shop.length > 10 ? chip("+" + (shop.length - 10)) : ""}</div>` : '<div class="muted">Ei mitään muistettavaa.</div>'}</a>`;
-
-  // Maksut
-  const limit = addMonths(t, 1);
-  const due = list("payments").filter(p => !p.paid && p.date && p.date <= limit).sort((a, b) => a.date.localeCompare(b.date));
-  if (due.length) h += `<a class="card link" href="#kulut"><div class="card-label">Maksut erääntymässä</div>${due.slice(0, 5).map(p => `<div class="line"><span>${esc(p.name)}</span><span class="${p.date < t ? "bad" : ""}">${eur(p.amount)} · ${fmtShort(p.date)}</span></div>`).join("")}</a>`;
-
-  return h;
+function vKoti() {
+  const th = T();
+  const greet = esc(th.text.greeting).replace(/\{nimi\}/g, esc(S.me.name));
+  let body = "";
+  th.home.order.forEach(k => { if (!th.home.hidden[k]) body += HOME_RENDER[k]?.() || ""; });
+  return (greet.trim() ? `<div class="hello">${greet}</div>` : "") + (body || empty("Etusivulle ei ole valittu näytettäviä kortteja."));
 }
 
 // ---------- Huolto ----------
@@ -684,6 +837,7 @@ function vLisaa() {
     ["kayttajat", "👥", isAdmin() ? "Käyttäjät ja PIN-koodit" : "Käyttäjät", noPin ? `${noPin} käyttäjältä puuttuu PIN` : S.users.join(", ")],
     ["profiili", "👤", "Oma profiili", (isAdmin() ? "👑 " : "") + S.me.name]
   ];
+  if (isAdmin()) items.push(["ulkoasu", "🎨", "Ulkoasu", "Värit, muodot, tekstit ja etusivu – näkyy kaikille"]);
   return `<div class="menu">${items.map(([v, ic, t, d]) => `<a class="menu-item" href="#${v}"><span class="menu-ic">${ic}</span><span class="menu-t"><b>${t}</b><small class="${v === "kayttajat" && noPin ? "warn" : ""}">${esc(d)}</small></span><span class="chev">›</span></a>`).join("")}</div>
     <button class="btn ghost block" data-action="switchUser">Vaihda käyttäjää</button>`;
 }
@@ -833,8 +987,130 @@ function vProfiili() {
     <div class="row-btns"><button class="btn ghost" data-action="logoutDevice">Kirjaa laite ulos</button>${isAdmin() ? '<button class="btn ghost" data-action="resetPw">Vaihda yhteinen salasana</button>' : ""}</div></div>`;
 }
 
+// ---------- Ulkoasu (vain pääkäyttäjä) ----------
+const tPath = (o, p) => p.split(".").reduce((a, k) => a?.[k], o);
+function tSet(o, path, v) {
+  const ks = path.split("."); const last = ks.pop(); let a = o;
+  for (const k of ks) a = (a[k] ??= {});
+  if (path.startsWith("home.") && (v === "" || v === false)) delete a[last]; else a[last] = v;
+}
+const tId = p => "tk-" + p.replace(/\./g, "-");
+const tColor = (p, label) => { const v = tPath(S.themeDraft, p); return `<label class="t-row"><span>${esc(label)}</span><span class="t-color"><code data-tv="${p}">${esc(v)}</code><input type="color" id="${tId(p)}" data-tk="${p}" value="${esc(v)}"></span></label>`; };
+const tRange = (p, label, min, max, step, unit = "") => { const v = tPath(S.themeDraft, p); return `<label class="t-row t-range"><span>${esc(label)} <b data-tv="${p}" data-unit="${unit}">${fmtNum(v)}${unit}</b></span><input type="range" id="${tId(p)}" data-tk="${p}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`; };
+const tSelect = (p, label, opts, isNum = false) => { const v = tPath(S.themeDraft, p); return `<label class="fld"><span>${esc(label)}</span><select id="${tId(p)}" data-tk="${p}" ${isNum ? 'data-num="1"' : ""}>${opts.map(([k, l]) => `<option value="${esc(k)}" ${String(k) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`; };
+const tCheck = (p, label, inv = false) => { const v = tPath(S.themeDraft, p); return `<label class="fld-check"><input type="checkbox" id="${tId(p)}" data-tk="${p}" ${inv ? 'data-inv="1"' : ""} ${(inv ? !v : v) ? "checked" : ""}><span>${esc(label)}</span></label>`; };
+const tText = (p, label, ph = "", rows = 0) => { const v = tPath(S.themeDraft, p) ?? ""; return `<label class="fld"><span>${esc(label)}</span>${rows ? `<textarea id="${tId(p)}" data-tk="${p}" rows="${rows}" placeholder="${esc(ph)}">${esc(v)}</textarea>` : `<input id="${tId(p)}" data-tk="${p}" value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off">`}</label>`; };
+
+function contrastHtml(p) {
+  const pairs = [["ink", "bg", "Teksti / tausta", 4.5], ["ink", "card", "Teksti / kortti", 4.5], ["head", "card", "Otsikot / kortti", 3],
+    ["muted", "card", "Himmeä teksti / kortti", 3], ["label", "card", "Pienet otsikot / kortti", 3], ["primary", "card", "Pääväri / kortti", 3]];
+  const bad = pairs.map(([a, b, l, min]) => [l, contrast(p[a], p[b]), min]).filter(([, c, min]) => c < min);
+  return bad.length ? `<div class="t-warn">⚠️ Huono luettavuus: ${bad.map(([l, c]) => `${esc(l)} (${c.toFixed(1).replace(".", ",")}:1)`).join(", ")}. Valitse kontrastisempi väri.</div>` : `<div class="form-note ok">✓ Värit ovat hyvin luettavissa.</div>`;
+}
+function saveBarState() {
+  const d = themeDirty();
+  return [d, d ? "Tallentamattomia muutoksia – vain sinä näet ne" : "Ei tallentamattomia muutoksia"];
+}
+function updateSaveBar() {
+  const bar = $("#t-savebar"); if (!bar) return;
+  const [d, txt] = saveBarState();
+  bar.classList.toggle("dirty", d); bar.querySelector(".savebar-t").textContent = txt;
+  bar.querySelectorAll("button").forEach(b => b.disabled = !d);
+}
+
+function vUlkoasu() {
+  if (!isAdmin() || !S.themeDraft) return backLink() + `<div class="card muted">Ulkoasua voi muokata vain pääkäyttäjä.</div>`;
+  const D = S.themeDraft, pal = S.themePal;
+  let h = backLink();
+  h += `<p class="form-note">Muutokset näkyvät heti esikatseluna vain sinulle. Kun painat <b>Tallenna kaikille</b>, ulkoasu päivittyy kaikkien laitteisiin.${S.themeMeta?.at ? ` Viimeksi tallentanut ${esc(S.themeMeta.by || "")} ${fmtDT(S.themeMeta.at)}.` : ""}</p>`;
+
+  // Valmiit teemat
+  h += secH("Valmiit teemat") + `<div class="presets">${Object.entries(THEME_PRESETS).map(([k, p]) => `<button class="preset" data-action="themePreset" data-preset="${k}"><span class="sw">${["bg", "card", "primary", "accent"].map(c => `<i style="background:${p[pal][c]}"></i>`).join("")}</span>${esc(p.name)}</button>`).join("")}</div>`;
+
+  // Värit
+  h += secH("Värit") + `<div class="card t-card">
+    ${tSelect("mode", "Väritila", [["auto", "Automaattinen (laitteen mukaan)"], ["light", "Aina vaalea"], ["dark", "Aina tumma"]])}
+    <div class="seg">${[["light", "☀️ Vaalea paletti"], ["dark", "🌙 Tumma paletti"]].map(([k, l]) => `<button data-action="themePal" data-pal="${k}" class="${k === pal ? "on" : ""}">${l}</button>`).join("")}</div>
+    <p class="form-note">Muokkaat nyt ${pal === "light" ? "vaaleaa" : "tummaa"} palettia, ja esikatselu näyttää sen.</p>
+    <div class="card t-preview"><div class="card-label">Esikatselu</div><div class="big">Iso otsikko</div><p>Tavallista tekstiä ja <span class="muted">himmeää tekstiä</span>.</p>
+      <div class="chips">${chip("Merkki")}${chip("OK", "ok-chip")}${chip("Vähissä", "warn")}${chip("Myöhässä", "bad")}</div>
+      <div class="bar-t t-bar"><i style="width:60%"></i></div>
+      <div class="row-btns"><button class="btn primary" type="button">Pääpainike</button><button class="btn" type="button">Painike</button></div></div>
+    <div class="t-colors">${COLOR_FIELDS.map(([k, l]) => tColor(`${pal}.${k}`, l)).join("")}</div>
+    <div id="t-contrast">${contrastHtml(D[pal])}</div>
+    ${tSelect("topbar", "Yläpalkin tyyli", [["plain", "Taustan värinen"], ["color", "Pääväri"]])}
+  </div>`;
+
+  // Muodot
+  h += secH("Muodot ja tilat") + `<div class="card t-card">
+    ${tRange("shape.radius", "Korttien pyöristys", 0, 32, 1, " px")}
+    ${tRange("shape.btnRadius", "Painikkeiden pyöristys", 0, 24, 1, " px")}
+    ${tRange("shape.inputRadius", "Kenttien pyöristys", 0, 24, 1, " px")}
+    ${tRange("shape.border", "Reunaviivan paksuus", 0, 3, 1, " px")}
+    ${tSelect("shape.shadow", "Varjot", Object.entries(SHADOWS))}
+    ${tSelect("shape.density", "Väljyys", Object.entries(DENSITY).map(([k, v]) => [k, v[0]]))}
+  </div>`;
+
+  // Teksti
+  h += secH("Teksti ja fontit") + `<div class="card t-card">
+    ${tRange("type.scale", "Tekstin koko", 85, 130, 5, " %")}
+    ${tSelect("type.font", "Leipätekstin fontti", Object.entries(FONTS).map(([k, v]) => [k, v[0]]))}
+    ${tSelect("type.headFont", "Otsikoiden fontti", Object.entries(FONTS).map(([k, v]) => [k, v[0]]))}
+    ${tSelect("type.headWeight", "Otsikoiden paksuus", HEAD_WEIGHTS, true)}
+    ${tRange("type.titleSize", "Sivun otsikon koko", 1, 2, 0.05, " rem")}
+    ${tCheck("type.labelCaps", "Korttien pienet otsikot ISOILLA KIRJAIMILLA")}
+  </div>`;
+
+  // Sisältö
+  h += secH("Tekstisisältö") + `<div class="card t-card">
+    ${tText("text.appName", "Sovelluksen nimi", CABIN_NAME)}
+    ${tText("text.tagline", "Alaotsikko kirjautumissivulla", DEFAULT_THEME.text.tagline)}
+    ${tText("text.greeting", "Tervehdys etusivulla", DEFAULT_THEME.text.greeting)}
+    <p class="form-note">{nimi} korvautuu käyttäjän nimellä. Tyhjä = ei tervehdystä.</p>
+    ${tText("text.notice", "Tiedote kaikille etusivulle", "esim. Laituri korjataan 15.6. – älä käytä venettä ennen sitä.", 3)}
+    <p class="form-note">Tyhjä tiedote ei näy etusivulla.</p>
+    <h3 class="form-h">Alavalikon nimet</h3>
+    <div class="t-nav">${NAV.map(([k, l]) => tText(`text.nav.${k}`, l, l)).join("")}</div>
+  </div>`;
+
+  // Etusivu
+  const order = D.home.order;
+  h += secH("Etusivun kortit") + `<p class="form-note">Valitse mitkä kortit näkyvät etusivulla, missä järjestyksessä ja millä otsikolla.</p>
+    <div class="list">${order.map((k, i) => {
+      const [, def, titled] = HOME_CARDS.find(c => c[0] === k);
+      return `<div class="item"><div class="item-row t-home">
+        <input type="checkbox" class="t-vis" id="${tId("home.hidden." + k)}" data-tk="home.hidden.${k}" data-inv="1" ${D.home.hidden[k] ? "" : "checked"} aria-label="Näytä ${esc(def)}">
+        <div class="item-main">${titled ? `<input class="t-title" id="${tId("home.titles." + k)}" data-tk="home.titles.${k}" value="${esc(D.home.titles[k] || "")}" placeholder="${esc(def)}" autocomplete="off">` : `<div class="item-title">${esc(def)}</div>`}</div>
+        <span class="order-btns"><button class="icon-btn" data-action="themeMove" data-key="${k}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="themeMove" data-key="${k}" data-dir="1" ${i === order.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span>
+      </div></div>`;
+    }).join("")}</div>`;
+
+  h += `<button class="btn danger ghost block" data-action="themeReset">Palauta oletusulkoasu</button>`;
+  const [d, txt] = saveBarState();
+  h += `<div id="t-savebar" class="savebar ${d ? "dirty" : ""}"><span class="savebar-t">${txt}</span><button class="btn ghost small" data-action="themeUndo" ${d ? "" : "disabled"}>Peru</button><button class="btn primary small" data-action="themeSave" ${d ? "" : "disabled"}>Tallenna kaikille</button></div>`;
+  return h;
+}
+
+function onThemeInput(e) {
+  const el = e.target;
+  if (!el?.dataset?.tk || !S.themeDraft) return;
+  let v = el.type === "checkbox" ? el.checked : el.value;
+  if (el.dataset.inv) v = !v;
+  if (el.dataset.num || el.type === "range") v = Number(v);
+  const p = el.dataset.tk;
+  tSet(S.themeDraft, p, v);
+  document.querySelectorAll(`[data-tv="${p}"]`).forEach(x => x.textContent = (el.type === "color" ? v : fmtNum(v)) + (x.dataset.unit || ""));
+  if (p === "mode" && v !== "auto" && v !== S.themePal) { S.themePal = v; previewTheme(); render(); return; }
+  previewTheme();
+  if (/^(light|dark)\./.test(p)) { const c = $("#t-contrast"); if (c) c.innerHTML = contrastHtml(S.themeDraft[S.themePal]); }
+  if (p.startsWith("text.nav.")) renderNav();
+  updateSaveBar();
+}
+document.addEventListener("input", onThemeInput);
+document.addEventListener("change", onThemeInput);
+
 const VIEWS = {
-  koti: { title: () => getInfo().name || CABIN_NAME, render: vKoti },
+  koti: { title: () => getInfo().name || appName(), render: vKoti },
   huolto: { title: () => "Huolto", render: vHuolto },
   kausi: { title: () => "Kausilistat", render: vKausi },
   tavarat: { title: () => "Tavarat", render: vTavarat },
@@ -844,7 +1120,8 @@ const VIEWS = {
   varaukset: { title: () => "Varauskalenteri", render: vVaraukset },
   korjaukset: { title: () => "Korjaussuunnitelma", render: vKorjaukset },
   kayttajat: { title: () => "Käyttäjät", render: vKayttajat },
-  profiili: { title: () => "Oma profiili", render: vProfiili }
+  profiili: { title: () => "Oma profiili", render: vProfiili },
+  ulkoasu: { title: () => "Ulkoasu", render: vUlkoasu }
 };
 
 // ---------- Renderöinti ----------
@@ -855,9 +1132,14 @@ function render() {
   const view = $("#view");
   const a = document.activeElement;
   const keep = a && view.contains(a) && a.id ? { id: a.id, val: a.value, s: a.selectionStart } : null;
+  if (S.view === "ulkoasu" && isAdmin() && !S.themeDraft) {
+    S.themeDraft = structuredClone(S.theme);
+    S.themePal = S.theme.mode !== "auto" ? S.theme.mode : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    previewTheme();
+  }
   const V = VIEWS[S.view] || VIEWS.koti;
   $("#title").textContent = V.title();
-  document.title = V.title() + " · Mökki";
+  document.title = V.title() === appName() ? appName() : V.title() + " · " + appName();
   view.innerHTML = V.render();
   renderNav();
   if (keep) {
@@ -869,10 +1151,19 @@ function render() {
 function renderNav() {
   const active = VIEW_PARENT[S.view] || S.view;
   const pending = isAdmin() ? S.users.filter(u => !S.pins[u]).length : 0;
-  $("#nav").innerHTML = NAV.map(([k, l]) => `<a href="#${k}" class="${k === active ? "on" : ""}" ${k === active ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span>${l}</span>${k === "lisaa" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
+  const labels = T().text.nav;
+  $("#nav").innerHTML = NAV.map(([k, l]) => `<a href="#${k}" class="${k === active ? "on" : ""}" ${k === active ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span>${esc(labels[k] || l)}</span>${k === "lisaa" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
 }
 function routeFromHash() { const h = location.hash.slice(1); S.view = VIEWS[h] ? h : "koti"; }
-window.addEventListener("hashchange", () => { routeFromHash(); S.editOrder = false; window.scrollTo(0, 0); render(); });
+window.addEventListener("hashchange", () => {
+  const prev = S.view;
+  routeFromHash();
+  if (prev === "ulkoasu" && S.view !== "ulkoasu" && S.themeDraft) {
+    if (themeDirty() && !confirm("Ulkoasun muutoksia ei ole tallennettu. Hylätäänkö ne?")) { location.hash = "ulkoasu"; return; }
+    discardThemeDraft();
+  }
+  S.editOrder = false; window.scrollTo(0, 0); render();
+});
 
 // =============================================================
 //  TOIMINNOT
@@ -1059,6 +1350,34 @@ const ACTIONS = {
     if (i < 0 || j < 0 || j >= u.length) return;
     [u[i], u[j]] = [u[j], u[i]]; saveUsers(u, S.pins);
   },
+  // Ulkoasu
+  themePal: d => { S.themePal = d.pal; previewTheme(); render(); },
+  themePreset: d => {
+    const p = THEME_PRESETS[d.preset]; if (!p || !S.themeDraft) return;
+    S.themeDraft.light = { ...p.light }; S.themeDraft.dark = { ...p.dark };
+    previewTheme(); render(); toast(`Teema ${p.name} valittu – muista tallentaa`);
+  },
+  themeMove: d => {
+    if (!S.themeDraft) return;
+    const o = S.themeDraft.home.order; const i = o.indexOf(d.key), j = i + Number(d.dir);
+    if (i < 0 || j < 0 || j >= o.length) return;
+    [o[i], o[j]] = [o[j], o[i]]; render();
+  },
+  themeReset: () => {
+    if (!S.themeDraft || !confirm("Palautetaanko oletusulkoasu? Muutos tulee kaikille vasta, kun painat Tallenna kaikille.")) return;
+    S.themeDraft = structuredClone(DEFAULT_THEME); previewTheme(); render();
+  },
+  themeUndo: () => { if (!S.themeDraft) return; S.themeDraft = structuredClone(S.theme); previewTheme(); render(); },
+  themeSave: () => {
+    if (!isAdmin() || !S.themeDraft) return;
+    const data = mergeTheme(S.themeDraft);
+    const at = nowIso();
+    setDoc(THEME_DOC(), { ...data, updatedByName: S.me.name, updatedAt: at }).catch(fail);
+    S.theme = data; S.themeDraft = structuredClone(data); S.themeMeta = { by: S.me.name, at };
+    cacheTheme(); previewTheme(); render();
+    toast("Ulkoasu tallennettu – näkyy kaikille");
+  },
+
   resetPw: async () => {
     try { await sendPasswordResetEmail(auth, LOGIN_EMAIL); toast("Salasanan vaihtolinkki lähetetty: " + LOGIN_EMAIL); }
     catch (e) { toast(authError(e), true); }
@@ -1193,7 +1512,7 @@ function showMessage(msg, isErr = false) {
 // 1) Laitteen kirjautuminen yhteisellä tunnuksella
 function showDeviceLogin() {
   showOnly("auth");
-  $("#auth").innerHTML = `<div class="auth-card">${CABIN_SVG}<h1>${esc(CABIN_NAME)}</h1><p class="muted">Perheen yhteinen mökkikirja</p>
+  $("#auth").innerHTML = `<div class="auth-card">${CABIN_SVG}<h1>${esc(appName())}</h1>${T().text.tagline ? `<p class="muted">${esc(T().text.tagline)}</p>` : ""}
     <form id="authform" class="form">
       <input type="email" name="email" value="${esc(LOGIN_EMAIL)}" autocomplete="username" hidden>
       <label class="fld"><span>Yhteinen salasana</span><input name="password" type="password" required autocomplete="current-password"></label>
@@ -1275,6 +1594,7 @@ function loginAs(name) {
 function switchUser() {
   try { localStorage.removeItem(USER_KEY); } catch { }
   stopData(); S.me = null; S.d = {}; S.tab = {}; S.editOrder = false;
+  discardThemeDraft();
   location.hash = "";
   showPicker();
 }
@@ -1321,12 +1641,25 @@ function afterUsersLoaded() {
   else showPicker();
 }
 
-let usersUnsub = null;
+function onThemeSnap(snap) {
+  if (!snap.exists() && snap.metadata.fromCache) return; // ei tietoa vielä → pidetään laitteen muistama teema
+  const data = snap.exists() ? snap.data() : {};
+  S.theme = mergeTheme(data);
+  S.themeMeta = data.updatedAt ? { by: data.updatedByName, at: data.updatedAt } : null;
+  cacheTheme();
+  if (!S.themeDraft) applyTheme(S.theme);
+  if (S.me && S.started) scheduleRender();
+}
+
+let usersUnsub = null, themeUnsub = null;
 onAuthStateChanged(auth, user => {
   S.user = user;
   if (usersUnsub) { usersUnsub(); usersUnsub = null; }
+  if (themeUnsub) { themeUnsub(); themeUnsub = null; }
   stopData(); S.me = null; S.d = {}; S.usersLoaded = false;
+  discardThemeDraft();
   if (!user) { showDeviceLogin(); return; }
+  themeUnsub = onSnapshot(THEME_DOC(), onThemeSnap, err => console.warn("theme", err));
   showMessage("Ladataan…");
   usersUnsub = onSnapshot(USERS_DOC(), snap => {
     if (!snap.exists()) {

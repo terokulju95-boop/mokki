@@ -9,6 +9,16 @@ Pelkkä HTML/JS-sovellus, joka tallentaa tiedot Firebase-projektiin **Jannenrant
 
 Käyttäjät: Tero (pääkäyttäjä), Timo, Tiina, Tepa, Äiti, Iskä.
 
+## Ulkoasu (vain pääkäyttäjä)
+**Lisää → Ulkoasu** näkyy vain pääkäyttäjälle. Siellä voi muokata:
+- **Värit** – valmiit teemat (Metsä, Järvi, Sauna, Graniitti, Kanerva) tai jokainen väri erikseen, erikseen vaalealle ja tummalle tilalle. Väritilan voi pakottaa aina vaaleaksi tai tummaksi. Sovellus varoittaa, jos teksti on huonosti luettavissa.
+- **Muodot** – korttien, painikkeiden ja kenttien pyöristys, reunaviivat, varjot ja väljyys.
+- **Teksti** – tekstin koko, fontit, otsikoiden paksuus ja koko.
+- **Tekstisisältö** – sovelluksen nimi, tervehdys, tiedote kaikille etusivulle ja alavalikon nimet.
+- **Etusivun kortit** – mitkä näkyvät, missä järjestyksessä ja millä otsikolla.
+
+Muutokset näkyvät ensin vain pääkäyttäjälle esikatseluna. **Tallenna kaikille** päivittää ne kaikkien laitteisiin heti.
+
 ## Käyttöönotto
 
 ### 1. Firebase (projekti Jannenranta)
@@ -37,7 +47,7 @@ Sähköposti, käyttäjät ja pääkäyttäjä on jo valmiina `firebase-config.j
 - **Android:** Chrome → ⋮ → *Asenna sovellus*
 
 ## Päivittäminen
-Kun muutat tiedostoja, kasvata `sw.js`-tiedoston alussa olevaa versiota (`mokki-v2` → `mokki-v3`).
+Kun muutat tiedostoja, kasvata `sw.js`-tiedoston alussa olevaa versiota (esim. `mokki-v4` → `mokki-v5`).
 
 ## Tietorakenne (Firestore)
-`app/users` käyttäjät ja PIN-koodit · `info/main` perustiedot · `places` · `contacts` · `logs` nuohous/puut/huollot · `todos` · `checkItems` · `seasonRuns` · `inventory` · `shopping` · `payments` · `repairs` · `bookings` · `photos`
+`app/users` käyttäjät ja PIN-koodit · `app/theme` ulkoasu · `info/main` perustiedot · `places` · `contacts` · `logs` nuohous/puut/huollot · `todos` · `checkItems` · `seasonRuns` · `inventory` · `shopping` · `payments` · `repairs` · `bookings` · `photos`
