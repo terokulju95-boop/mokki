@@ -423,3 +423,11 @@ details.more .btn { margin-top: 10px; }
 .item-row[data-action]:active { background: var(--green-l); }
 span.check { display: block; }
 button.info-dot { border: 0; background: var(--green-l); color: var(--green); border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 700; cursor: pointer; vertical-align: 1px; margin-left: 4px; }
+
+/* Alavalikon asetukset */
+.bottomnav.many a { font-size: .62rem; }
+.bottomnav a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.t-navrow .fld > span { font-size: .78rem; }
+.t-navrow .fld input { min-height: 40px; padding: 8px 10px; }
+.t-navic svg { width: 24px; height: 24px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.chip-btn:disabled { opacity: .45; }

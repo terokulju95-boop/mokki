@@ -16,6 +16,7 @@ Käyttäjät: Tero (pääkäyttäjä), Timo, Tiina, Tepa, Äiti, Iskä.
 - **Teksti** – tekstin koko, fontit, otsikoiden paksuus ja koko.
 - **Tekstisisältö** – sovelluksen nimi, tervehdys, tiedote kaikille etusivulle ja alavalikon nimet.
 - **Etusivu** – muokataan suoraan etusivulla (✎ Muokkaa etusivua): korttien järjestys, koko (iso / pieni / puolikas), otsikot, tervehdys ja tiedote.
+- **Alavalikko** – mitkä osiot (enintään 5) näkyvät alavalikossa ja millä nimellä. Loput löytyvät Lisää-valikosta.
 - **Ominaisuudet** – tehtävien määräajat, laskujen eräpäivät ja toistuvat laskut. Oletuksena pois päältä.
 
 Muutokset näkyvät ensin vain pääkäyttäjälle esikatseluna. **Tallenna kaikille** päivittää ne kaikkien laitteisiin heti.

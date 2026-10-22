@@ -31,17 +31,37 @@ const USERS_DOC = () => doc(db, "app", "users");
 const COLS = ["logs", "todos", "checkItems", "seasonRuns", "inventory", "shopping",
   "payments", "repairs", "bookings", "info", "contacts", "places"];
 
-const VIEW_PARENT = { perustiedot: "lisaa", varaukset: "lisaa", korjaukset: "lisaa", kayttajat: "lisaa", profiili: "lisaa", ulkoasu: "lisaa" };
+
 
 const ICONS = {
   koti: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
-  huolto: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9l-3.8 3.8z"/>',
-  kausi: '<path d="M3 6.5 5 8.5 9 4.5"/><path d="M3 13.5 5 15.5 9 11.5"/><path d="M13 7h8M13 14h8M13 20h8"/>',
+  huolto: '<path d="M12 3c.6 3.4 5 5.6 5 10.2A5 5 0 0 1 7 13.2c0-2.4 1.3-4 2.4-5 .3 1.8 1.2 2.8 2.5 3.2.6-2.7-.4-5.6.1-8.4z"/>',
+  huoltotyot: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9l-3.8 3.8z"/>',
+  tehtavat: '<path d="M3 6.5 5 8.5 9 4.5"/><path d="M3 13.5 5 15.5 9 11.5"/><path d="M13 7h8M13 14h8M13 20h8"/>',
+  kausi: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>',
   tavarat: '<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/>',
   kulut: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.6a4 4 0 1 0 0 6.8M7.5 11h6M7.5 13.2h6"/>',
+  varaukset: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7.5 14h3M13.5 14h3M7.5 17.5h3"/>',
+  korjaukset: '<path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M10 21v-5h4v5"/>',
+  perustiedot: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   lisaa: '<path d="M4 6h16M4 12h16M4 18h16"/>'
 };
-const NAV = [["koti", "Koti"], ["huolto", "Huolto"], ["kausi", "Kausi"], ["tavarat", "Tavarat"], ["kulut", "Kulut"], ["lisaa", "Lisää"]];
+// Osiot, joita pääkäyttäjä voi sijoittaa alavalikkoon. Loput näkyvät Lisää-valikossa.
+// [avain, lyhyt nimi alavalikossa, emoji, nimi Lisää-valikossa, kuvaus]
+const SECTIONS = [
+  ["huolto", "Lämmitys", "🔥", "Nuohous ja puut", "Edellinen nuohous ja puutilaukset"],
+  ["huoltotyot", "Huollot", "🔧", "Huoltotyöt", "Tehdyt huoltotyöt"],
+  ["tehtavat", "Tehtävät", "✅", "Tehtävät", "Tulevat tehtävät"],
+  ["kausi", "Kausi", "🍂", "Kausilistat", "Talviteloille ja kevään käyttöönotto"],
+  ["tavarat", "Tavarat", "📦", "Tavarat", "Vie mukana, hankittavat ja inventaario"],
+  ["kulut", "Kulut", "💶", "Kulut", "Laskut ja vuoden kulut"],
+  ["varaukset", "Varaukset", "📅", "Varauskalenteri", "Kuka on mökillä milloin"],
+  ["korjaukset", "Korjaukset", "🛠️", "Korjaussuunnitelma", "Isommat remontit ja kustannusarviot"],
+  ["perustiedot", "Tiedot", "🏡", "Perustiedot", "Osoite, avaimet, yhteystiedot, tärkeät paikat"]
+];
+const NAV = [["koti", "Koti"], ...SECTIONS.map(x => [x[0], x[1]]), ["lisaa", "Lisää"]];
+const NAV_MAX = 5;
+const DEFAULT_NAV_ITEMS = ["huolto", "huoltotyot", "tehtavat", "tavarat"];
 
 const LOG_TYPES = { nuohous: "Nuohous", puut: "Polttopuut", huolto: "Huoltotyöt" };
 const MAINT_CATS = ["Sähkö", "Vesi & viemäri", "Lämmitys & tulisijat", "Rakennus", "Sauna", "Piha & laituri", "Vene & moottori", "Laitteet", "Muu"];
@@ -228,7 +248,7 @@ const THEME_KEY = "mokki_theme";
 const HOME_CARDS = [
   ["notice", "Tiedote", "full"], ["season", "Kausilista", "full"], ["bookings", "Mökillä", "full"], ["todos", "Tehtävät", "full"],
   ["shopping", "Vie mukana seuraavalla kerralla", "full"], ["buy", "Hankittavat", "full"], ["inventory", "Inventaario", "full"],
-  ["sweep", "Edellinen nuohous", "half"], ["wood", "Edelliset puut", "half"],
+  ["maint", "Huoltotyöt", "full"], ["sweep", "Edellinen nuohous", "half"], ["wood", "Edelliset puut", "half"],
   ["payments", "Maksut erääntymässä", "full"], ["address", "Mökin osoite", "compact"]
 ];
 const HOME_SIZES = [["full", "Iso"], ["compact", "Pieni"], ["half", "Puolikas"]];
@@ -264,7 +284,8 @@ const DEFAULT_THEME = {
   type: { scale: 100, font: "system", headFont: "system", titleSize: 1.25, headWeight: 700, labelCaps: true },
   text: { appName: CABIN_NAME, tagline: "Perheen yhteinen mökkikirja", greeting: "Hei, {nimi}!", notice: "", nav: { ...NAV_DEFAULTS } },
   home: { order: HOME_CARDS.map(c => c[0]), hidden: {}, titles: {}, size: Object.fromEntries(HOME_CARDS.map(c => [c[0], c[2]])) },
-  features: { todoDue: false, payDue: false, payRecurring: false }
+  features: { todoDue: false, payDue: false, payRecurring: false },
+  navItems: [...DEFAULT_NAV_ITEMS]
 };
 const T = () => S.themeDraft || S.theme || DEFAULT_THEME;
 // Valinnaiset aikatauluominaisuudet (oletuksena pois). Tiedot säilyvät, vaikka ominaisuus on pois päältä.
@@ -307,6 +328,8 @@ function mergeTheme(src) {
   t.text.greeting = str(tx.greeting, t.text.greeting, 100);
   t.text.notice = str(tx.notice, "", 2000);
   for (const k of Object.keys(NAV_DEFAULTS)) t.text.nav[k] = str(tx.nav?.[k], NAV_DEFAULTS[k], 14);
+  if (t.text.nav.huolto === "Huolto") t.text.nav.huolto = NAV_DEFAULTS.huolto; // vanha nimi, osio on nyt pelkkä nuohous ja puut
+  if (Array.isArray(s.navItems)) t.navItems = [...new Set(s.navItems.filter(k => SECTIONS.some(x => x[0] === k)))].slice(0, NAV_MAX);
   if (Array.isArray(hm.order)) {
     const known = hm.order.flatMap(k => k === "latest" ? ["sweep", "wood"] : [k]).filter(k => HOME_CARDS.some(c => c[0] === k));
     t.home.order = [...new Set([...known, ...t.home.order])];
@@ -483,7 +506,8 @@ const seg = (view, tabs, def) => {
 };
 const empty = t => `<div class="empty">${t}</div>`;
 const secH = (t, extra = "") => `<div class="sec-h"><h2>${t}</h2>${extra}</div>`;
-const backLink = () => `<a class="back" href="#lisaa">‹ Lisää</a>`;
+const navKeys = () => ["koti", ...T().navItems, "lisaa"];
+const backLink = () => navKeys().includes(S.view) ? "" : `<a class="back" href="#lisaa">‹ Lisää</a>`;
 const details = (id, summary, inner) => `<details id="${id}" class="more" ${S.openDetails.has(id) ? "open" : ""}><summary>${summary}</summary>${inner}</details>`;
 const chip = (t, cls = "") => `<span class="chip ${cls}">${t}</span>`;
 
@@ -525,8 +549,8 @@ const HOME_DATA = {
   todos: () => {
     const todos = openTodos();
     return {
-      count: todos.length, href: "#huolto", attrs: tabAttrs("huolto", "tehtavat"), noFullLink: true,
-      right: `<a href="#huolto" ${tabAttrs("huolto", "tehtavat")}>Kaikki ›</a>`,
+      count: todos.length, href: "#tehtavat", noFullLink: true,
+      right: `<a href="#tehtavat">Kaikki ›</a>`,
       body: todos.length ? `<div class="list flat">${todos.slice(0, 5).map(todoRow).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>',
       short: todos.length ? esc(todos.slice(0, 3).map(x => x.text).join(", ")) : '<span class="muted">Ei avoimia tehtäviä</span>'
     };
@@ -537,6 +561,15 @@ const HOME_DATA = {
       count: shop.length, href: "#tavarat", attrs: tabAttrs("tavarat", "vie"),
       body: shop.length ? `<div class="chips">${shop.slice(0, 10).map(s => chip(esc(s.text))).join("")}${shop.length > 10 ? chip("+" + (shop.length - 10)) : ""}</div>` : '<div class="muted">Ei mitään muistettavaa.</div>',
       short: shop.length ? esc(shop.slice(0, 4).map(x => x.text).join(", ")) : '<span class="muted">Ei mitään muistettavaa</span>'
+    };
+  },
+  maint: () => {
+    const logs = list("logs").filter(l => l.type === "huolto").sort(byDateDesc);
+    return {
+      href: "#huoltotyot", noFullLink: true,
+      right: `<a href="#huoltotyot">Kaikki ›</a>`,
+      body: logs.length ? logs.slice(0, 4).map(l => `<div class="line"><span>${esc(l.title)}</span><span class="muted">${fmtDate(l.date)}</span></div>`).join("") : '<div class="muted">Ei kirjattuja huoltotöitä.</div>',
+      short: logs.length ? `${esc(logs[0].title)} <span class="muted">· ${fmtDate(logs[0].date)}</span>` : '<span class="muted">Ei kirjattuja huoltotöitä</span>'
     };
   },
   sweep: () => {
@@ -695,9 +728,8 @@ const LOG_FIELDS = {
 const LOG_ADD = { nuohous: "Kirjaa nuohous", puut: "Kirjaa puutilaus", huolto: "Kirjaa huoltotyö" };
 
 function vHuolto() {
-  const t = curTab("huolto", "nuohous");
-  let h = seg("huolto", [["nuohous", "Nuohous"], ["puut", "Puut"], ["huolto", "Muut huollot"], ["tehtavat", "Tehtävät"]]);
-  if (t === "tehtavat") return h + vTodos();
+  let t = curTab("huolto", "nuohous"); if (t !== "puut") t = "nuohous";
+  let h = backLink() + seg("huolto", [["nuohous", "Nuohous"], ["puut", "Puut"]], "nuohous");
   const logs = list("logs").filter(l => l.type === t).sort(byDateDesc);
   if (t === "nuohous") h += sweepSummary(logs);
   if (t === "puut") h += woodSummary(logs);
@@ -758,10 +790,15 @@ function openTodos() {
   return list("todos").filter(t => !t.done).sort((a, b) =>
     ((b.priority === "tarkea") - (a.priority === "tarkea")) || (F("todoDue") ? (a.due || "9999").localeCompare(b.due || "9999") : 0) || (a.createdAt || "").localeCompare(b.createdAt || ""));
 }
+function vHuoltotyot() {
+  const logs = list("logs").filter(l => l.type === "huolto").sort(byDateDesc);
+  return backLink() + `<button class="btn primary block" data-action="addLog" data-type="huolto">+ ${LOG_ADD.huolto}</button>`
+    + (logs.length ? logs.map(logCard).join("") : empty("Ei vielä kirjattuja huoltotöitä."));
+}
 function vTodos() {
   const open = openTodos();
   const done = list("todos").filter(t => t.done).sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || ""));
-  let h = `<form class="quick" data-form="addTodo"><input id="todo-new" name="text" placeholder="Uusi tehtävä, esim. Vaihda saunan lauteet" autocomplete="off" enterkeyhint="done"><button class="btn primary">Lisää</button></form>`;
+  let h = backLink() + `<form class="quick" data-form="addTodo"><input id="todo-new" name="text" placeholder="Uusi tehtävä, esim. Vaihda saunan lauteet" autocomplete="off" enterkeyhint="done"><button class="btn primary">Lisää</button></form>`;
   h += `<p class="form-note">Napauta tehtävää merkitäksesi sen tehdyksi. Kynästä ✎ voit muokata tehtävää.</p>`;
   h += open.length ? `<div class="list">${open.map(todoRow).join("")}</div>` : empty("Ei avoimia tehtäviä 🎉");
   if (done.length) h += details("d-todos", `Tehdyt (${done.length})`, `<div class="list">${done.map(todoRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="todos">Poista tehdyt listalta</button>`);
@@ -808,7 +845,7 @@ function vKausi() {
   const run = currentRun(season);
   const done = run?.completed || {};
   const doneCount = items.filter(i => done[i.id]).length;
-  let h = seg("kausi", [["talvi", SEASON_NAMES.talvi], ["kevat", SEASON_NAMES.kevat]], defaultSeason());
+  let h = backLink() + seg("kausi", [["talvi", SEASON_NAMES.talvi], ["kevat", SEASON_NAMES.kevat]], defaultSeason());
 
   if (run) {
     const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
@@ -854,7 +891,7 @@ function checkItemRow(it, d, idx, n) {
 const shopList = s => s.list === "osta" ? "osta" : "vie";
 function vTavarat() {
   const t = curTab("tavarat", "vie");
-  return seg("tavarat", [["vie", "🧺 Vie mukana"], ["osta", "🛒 Hankittavat"], ["inv", "📦 Inventaario"]]) + (t === "inv" ? vInventory() : vShopping(t === "osta" ? "osta" : "vie"));
+  return backLink() + seg("tavarat", [["vie", "🧺 Vie mukana"], ["osta", "🛒 Hankittavat"], ["inv", "📦 Inventaario"]]) + (t === "inv" ? vInventory() : vShopping(t === "osta" ? "osta" : "vie"));
 }
 function vShopping(kind) {
   const items = list("shopping").filter(i => shopList(i) === kind);
@@ -922,7 +959,7 @@ function vKulut() {
   const paid = pays.filter(p => p.paid).reduce((s, p) => s + num(p.amount), 0);
   const payTotal = pays.reduce((s, p) => s + num(p.amount), 0);
 
-  let h = `<div class="chips years">${years.map(yy => `<button class="chip-btn ${yy === y ? "on" : ""}" data-action="kulutYear" data-year="${yy}">${yy}</button>`).join("")}</div>`;
+  let h = backLink() + `<div class="chips years">${years.map(yy => `<button class="chip-btn ${yy === y ? "on" : ""}" data-action="kulutYear" data-year="${yy}">${yy}</button>`).join("")}</div>`;
   h += `<div class="card"><div class="card-label">Mökin kulut ${y}</div><div class="huge">${eur(total)}</div>
     ${payTotal ? `<div class="muted small">Laskuista maksettu ${eur(paid)} / ${eur(payTotal)}</div>` : ""}
     ${total ? `<div class="bars">${Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="bar-row"><span class="bar-l">${esc(k)}</span><span class="bar-t"><i style="width:${Math.max(2, v / max * 100)}%"></i></span><span class="bar-v">${eur(v)}</span></div>`).join("")}</div>` : '<div class="muted">Ei kuluja tälle vuodelle.</div>'}
@@ -964,10 +1001,9 @@ function payRow(p) {
 // ---------- Lisää ----------
 function vLisaa() {
   const noPin = isAdmin() ? S.users.filter(u => !S.pins[u]).length : 0;
+  const inNav = T().navItems;
   const items = [
-    ["perustiedot", "🏡", "Perustiedot", "Osoite, avaimet, yhteystiedot, tärkeät paikat"],
-    ["varaukset", "📅", "Varauskalenteri", "Kuka on mökillä milloin"],
-    ["korjaukset", "🛠️", "Korjaussuunnitelma", "Isommat remontit ja kustannusarviot"],
+    ...SECTIONS.filter(x => !inNav.includes(x[0])).map(([k, , ic, t, d]) => [k, ic, t, d]),
     ["kayttajat", "👥", isAdmin() ? "Käyttäjät ja PIN-koodit" : "Käyttäjät", noPin ? `${noPin} käyttäjältä puuttuu PIN` : S.users.join(", ")],
     ["profiili", "👤", "Oma profiili", (isAdmin() ? "👑 " : "") + S.me.name]
   ];
@@ -1198,9 +1234,21 @@ function vUlkoasu() {
   h += secH("Tekstisisältö") + `<div class="card t-card">
     ${tText("text.appName", "Sovelluksen nimi", CABIN_NAME)}
     ${tText("text.tagline", "Alaotsikko kirjautumissivulla", DEFAULT_THEME.text.tagline)}
-    <h3 class="form-h">Alavalikon nimet</h3>
-    <div class="t-nav">${NAV.map(([k, l]) => tText(`text.nav.${k}`, l, l)).join("")}</div>
   </div>`;
+
+  // Alavalikko
+  const inNav = D.navItems, rest = SECTIONS.filter(x => !inNav.includes(x[0]));
+  const sec = k => SECTIONS.find(x => x[0] === k);
+  h += secH("Alavalikko") + `<p class="form-note">Valitse mitkä osiot näkyvät alavalikossa (enintään ${NAV_MAX}). Koti ja Lisää ovat aina mukana, ja muut osiot löytyvät Lisää-valikosta. Voit myös nimetä alavalikon painikkeet.</p>
+    <div class="list">
+      <div class="item"><div class="item-row t-navrow"><span class="t-navic"><svg viewBox="0 0 24 24">${ICONS.koti}</svg></span><div class="item-main">${tText("text.nav.koti", "Koti (aina ensimmäisenä)", "Koti")}</div></div></div>
+      ${inNav.map((k, i) => `<div class="item"><div class="item-row t-navrow"><span class="t-navic"><svg viewBox="0 0 24 24">${ICONS[k]}</svg></span>
+        <div class="item-main">${tText(`text.nav.${k}`, sec(k)[3], sec(k)[1])}</div>
+        <span class="order-btns"><button class="icon-btn" data-action="navMove" data-key="${k}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Ylös">↑</button><button class="icon-btn" data-action="navMove" data-key="${k}" data-dir="1" ${i === inNav.length - 1 ? "disabled" : ""} aria-label="Alas">↓</button></span>
+        <button class="icon-btn" data-action="navRemove" data-key="${k}" aria-label="Siirrä Lisää-valikkoon" title="Siirrä Lisää-valikkoon">✕</button></div></div>`).join("")}
+      <div class="item"><div class="item-row t-navrow"><span class="t-navic"><svg viewBox="0 0 24 24">${ICONS.lisaa}</svg></span><div class="item-main">${tText("text.nav.lisaa", "Lisää (aina viimeisenä)", "Lisää")}</div></div></div>
+    </div>
+    ${rest.length ? `<div class="form-note">Lisää-valikossa nyt – napauta siirtääksesi alavalikkoon:</div><div class="chips">${rest.map(x => `<button class="chip-btn" data-action="navAdd" data-key="${x[0]}" ${inNav.length >= NAV_MAX ? "disabled" : ""}>+ ${esc(x[3])}</button>`).join("")}</div>${inNav.length >= NAV_MAX ? `<p class="form-note">Alavalikko on täynnä. Poista ensin jokin ✕-painikkeella.</p>` : ""}` : ""}`;
 
   // Ominaisuudet
   h += secH("Ominaisuudet") + `<div class="card t-card"><p class="form-note">Valinnaiset aikataulutoiminnot. Pois päältä ollessaan ne eivät näy kenellekään, mutta jo tallennetut tiedot säilyvät.</p>
@@ -1236,7 +1284,9 @@ document.addEventListener("change", onThemeInput);
 
 const VIEWS = {
   koti: { title: () => getInfo().name || appName(), render: vKoti },
-  huolto: { title: () => "Huolto", render: vHuolto },
+  huolto: { title: () => "Nuohous ja puut", render: vHuolto },
+  huoltotyot: { title: () => "Huoltotyöt", render: vHuoltotyot },
+  tehtavat: { title: () => "Tehtävät", render: () => vTodos() },
   kausi: { title: () => "Kausilistat", render: vKausi },
   tavarat: { title: () => "Tavarat", render: vTavarat },
   kulut: { title: () => "Kulut", render: vKulut },
@@ -1274,10 +1324,14 @@ function render() {
   hydratePhotos(view);
 }
 function renderNav() {
-  const active = VIEW_PARENT[S.view] || S.view;
+  const keys = navKeys();
+  const active = keys.includes(S.view) ? S.view : "lisaa";
   const pending = isAdmin() ? S.users.filter(u => !S.pins[u]).length : 0;
   const labels = T().text.nav;
-  $("#nav").innerHTML = NAV.map(([k, l]) => `<a href="#${k}" class="${k === active ? "on" : ""}" ${k === active ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span>${esc(labels[k] || l)}</span>${k === "lisaa" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
+  const nav = $("#nav");
+  nav.style.gridTemplateColumns = `repeat(${keys.length}, 1fr)`;
+  nav.classList.toggle("many", keys.length > 6);
+  nav.innerHTML = NAV.filter(([k]) => keys.includes(k)).sort((a, b) => keys.indexOf(a[0]) - keys.indexOf(b[0])).map(([k, l]) => `<a href="#${k}" class="${k === active ? "on" : ""}" ${k === active ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span>${esc(labels[k] || l)}</span>${k === "lisaa" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
 }
 function routeFromHash() { const h = location.hash.slice(1); S.view = VIEWS[h] ? h : "koti"; }
 window.addEventListener("hashchange", () => {
@@ -1498,6 +1552,18 @@ const ACTIONS = {
     if (i < 0 || j < 0 || j >= vis.length) return;
     const a = o.indexOf(vis[i]), b = o.indexOf(vis[j]);
     [o[a], o[b]] = [o[b], o[a]]; render();
+  },
+  navMove: d => {
+    if (!S.themeDraft) return;
+    const o = S.themeDraft.navItems; const i = o.indexOf(d.key), j = i + Number(d.dir);
+    if (i < 0 || j < 0 || j >= o.length) return;
+    [o[i], o[j]] = [o[j], o[i]]; renderNav(); render();
+  },
+  navRemove: d => { if (!S.themeDraft) return; S.themeDraft.navItems = S.themeDraft.navItems.filter(k => k !== d.key); render(); },
+  navAdd: d => {
+    if (!S.themeDraft || S.themeDraft.navItems.includes(d.key)) return;
+    if (S.themeDraft.navItems.length >= NAV_MAX) { toast(`Alavalikkoon mahtuu ${NAV_MAX} osiota`, true); return; }
+    S.themeDraft.navItems.push(d.key); render();
   },
   homeSize: d => { if (!S.themeDraft) return; S.themeDraft.home.size[d.key] = d.size; render(); },
   homeHide: d => { if (!S.themeDraft) return; S.themeDraft.home.hidden[d.key] = true; render(); },
