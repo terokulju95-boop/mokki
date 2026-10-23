@@ -86,7 +86,45 @@ export function tSet(o, path, v) {
   } else a[last] = v;
 }
 export const tId = p => "tk-" + p.replace(/\./g, "-");
-export const tColor = (p, label) => { const v = tPath(S.themeDraft, p); return `<label class="t-row"><span>${esc(label)}</span><span class="t-color"><code data-tv="${p}">${esc(v)}</code><input type="color" id="${tId(p)}" data-tk="${p}" value="${esc(v)}"></span></label>`; };
+// Väririvi: värinvalitsin, värikoodin kirjoitus/liitto (#rrggbb) ja "Sama kuin" -kopiointi toisesta väristä
+export const tColor = (p, label) => {
+  const v = tPath(S.themeDraft, p), pal = p.split(".")[0], key = p.split(".").pop();
+  const others = COLOR_FIELDS.filter(([k]) => k !== key);
+  return `<div class="t-row t-colorrow"><label for="${tId(p)}-hex">${esc(label)}</label><span class="t-color">
+    <input type="color" id="${tId(p)}" data-tk="${p}" value="${esc(v)}" aria-label="${esc(label)}: valitse väri">
+    <input class="t-hex" id="${tId(p)}-hex" data-hex="${p}" data-tv="${p}" value="${esc(v)}" maxlength="25" spellcheck="false" autocomplete="off" autocapitalize="off" inputmode="text" placeholder="#000000" aria-label="${esc(label)}: värikoodi">
+    <select class="t-same" data-same="${p}" aria-label="${esc(label)}: käytä samaa väriä kuin"><option value="">Sama kuin…</option>${others.map(([k, l]) => `<option value="${pal}.${k}">${esc(l)}</option>`).join("")}</select>
+  </span></div>`;
+};
+// Hyväksyy muodot #abc, abc, #aabbcc, aabbcc ja rgb(1, 2, 3). Palauttaa #aabbcc tai null.
+export function parseColor(s) {
+  s = String(s || "").trim().toLowerCase();
+  let m = s.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/);
+  if (m) { const h = m[1]; return "#" + (h.length === 3 ? [...h].map(c => c + c).join("") : h); }
+  m = s.match(/^rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/);
+  if (m && m.slice(1, 4).every(n => Number(n) <= 255)) return "#" + m.slice(1, 4).map(n => Number(n).toString(16).padStart(2, "0")).join("");
+  return null;
+}
+function applyColor(p, hex) {
+  const el = document.getElementById(tId(p)); if (!el) return;
+  el.value = hex; onThemeInput({ target: el });
+}
+document.addEventListener("input", e => {
+  const h = e.target?.dataset?.hex; if (!h) return;
+  const c = parseColor(e.target.value);
+  e.target.classList.toggle("bad", !c && e.target.value.trim() !== "");
+  if (c) applyColor(h, c);
+});
+document.addEventListener("focusout", e => {
+  const h = e.target?.dataset?.hex; if (!h || !S.themeDraft) return;
+  e.target.value = tPath(S.themeDraft, h); e.target.classList.remove("bad");
+});
+document.addEventListener("focusin", e => { if (e.target?.dataset?.hex) e.target.select(); });
+document.addEventListener("change", e => {
+  const p = e.target?.dataset?.same; if (!p || !e.target.value || !S.themeDraft) return;
+  applyColor(p, tPath(S.themeDraft, e.target.value));
+  e.target.value = "";
+});
 export const tRange = (p, label, min, max, step, unit = "") => { const v = tPath(S.themeDraft, p); return `<label class="t-row t-range"><span>${esc(label)} <b data-tv="${p}" data-unit="${unit}">${fmtNum(v)}${unit}</b></span><input type="range" id="${tId(p)}" data-tk="${p}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`; };
 export const tSelect = (p, label, opts, isNum = false) => { const v = tPath(S.themeDraft, p); return `<label class="fld"><span>${esc(label)}</span><select id="${tId(p)}" data-tk="${p}" ${isNum ? 'data-num="1"' : ""}>${opts.map(([k, l]) => `<option value="${esc(k)}" ${String(k) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`; };
 export const tCheck = (p, label, inv = false) => { const v = tPath(S.themeDraft, p); return `<label class="fld-check"><input type="checkbox" id="${tId(p)}" data-tk="${p}" ${inv ? 'data-inv="1"' : ""} ${(inv ? !v : v) ? "checked" : ""}><span>${esc(label)}</span></label>`; };
@@ -230,7 +268,10 @@ export function onThemeInput(e) {
   if (el.dataset.num || el.type === "range") v = Number(v);
   const p = el.dataset.tk;
   tSet(S.themeDraft, p, v);
-  document.querySelectorAll(`[data-tv="${p}"]`).forEach(x => x.textContent = (el.type === "color" ? v : fmtNum(v)) + (x.dataset.unit || ""));
+  document.querySelectorAll(`[data-tv="${p}"]`).forEach(x => {
+    if (x.tagName === "INPUT") { if (x !== document.activeElement) { x.value = v; x.classList.remove("bad"); } }
+    else x.textContent = (el.type === "color" ? v : fmtNum(v)) + (x.dataset.unit || "");
+  });
   if (p === "mode" && v !== "auto" && v !== S.themePal) { S.themePal = v; previewTheme(); render(); return; }
   previewTheme();
   if (/^(light|dark)\./.test(p)) { const c = $("#t-contrast"); if (c) c.innerHTML = contrastHtml(S.themeDraft[S.themePal]); }

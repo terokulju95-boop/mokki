@@ -123,6 +123,7 @@ export const ACTIONS = {
 
   // Kulut
   kulutYear: d => { S.kulutYear = Number(d.year); render(); },
+  statYear: d => { S.statYear = Number(d.year); render(); },
   addPay: () => openForm({ formKey: "maksu", title: "Uusi maksu", fields: payFields(), onSubmit: v => { save("payments", v); toast("Tallennettu"); } }),
   editPay: d => { const p = findIn("payments", d.id); if (!p) return; openForm({ formKey: "maksu", title: "Muokkaa maksua", fields: payFields(), values: p, onSubmit: v => save("payments", v, p.id), onDelete: () => remove("payments", p.id) }); },
   togglePaid: d => {
@@ -395,7 +396,7 @@ document.addEventListener("click", e => {
   if (fn) { e.preventDefault(); fn(el.dataset, el); }
 });
 // Toiminnot, jotka ovat sallittuja esikatseltaessa toisena käyttäjänä (eivät muuta tietoja)
-const READONLY_OK = new Set(["tab", "calNav", "calView", "calMonthOpen", "expand", "todoCat", "openDevice", "closeDevice", "kulutYear", "copy", "runHistory", "previewStop"]);
+const READONLY_OK = new Set(["tab", "calNav", "calView", "calMonthOpen", "expand", "todoCat", "openDevice", "closeDevice", "kulutYear", "statYear", "copy", "runHistory", "previewStop"]);
 document.addEventListener("submit", e => {
   const f = e.target.closest("form[data-form]"); if (!f) return;
   e.preventDefault();

@@ -381,6 +381,13 @@ details.more .btn { margin-top: 10px; }
 .t-colors { display: grid; gap: 2px; }
 .t-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; font-size: .95rem; }
 .t-color { display: flex; align-items: center; gap: 8px; }
+.t-colorrow { flex-wrap: wrap; row-gap: 6px; border-bottom: 1px solid var(--line); padding: 8px 0; }
+.t-colorrow:last-child { border-bottom: 0; }
+.t-colorrow > label { flex: 1 1 140px; }
+.t-color .t-hex { width: 92px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 7px 8px; font: 600 max(16px, .9rem)/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-transform: lowercase; }
+.t-color .t-hex:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+.t-color .t-hex.bad { border-color: var(--bad, #b3402e); outline-color: var(--bad, #b3402e); }
+.t-color .t-same { width: 112px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 7px 6px; font-size: max(16px, .85rem); }
 .t-color code { font-size: .78rem; color: var(--muted); }
 .t-color input[type=color] { width: 46px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; cursor: pointer; }
 .t-color input[type=color]::-webkit-color-swatch-wrapper { padding: 3px; }
@@ -484,6 +491,11 @@ button.info-dot { border: 0; background: var(--green-l); color: var(--green); bo
 .ym-grid i.b.tent { background: color-mix(in srgb, var(--c) 45%, var(--card)); }
 .ym-grid i.clash { outline: 1.5px solid var(--bad); }
 .ym-grid i.today { outline: 1.5px solid var(--ink); }
+.usage .bar-t { display: flex; }
+.usage .bar-t i { flex: none; border-radius: 0; }
+.usage .bar-t i:first-child { border-radius: 99px 0 0 99px; }
+.usage .bar-t i.tent { background: repeating-linear-gradient(135deg, var(--c) 0 4px, color-mix(in srgb, var(--c) 35%, var(--card)) 4px 8px); }
+.usage-meta { margin: 2px 0 0; padding-left: 16px; }
 .year-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .85rem; }
 .tentative-line { opacity: .8; }
 .week-b.tent { text-shadow: 0 1px 2px rgba(0,0,0,.65); }

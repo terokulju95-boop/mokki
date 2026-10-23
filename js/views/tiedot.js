@@ -136,8 +136,44 @@ export function vVaraukset() {
   h += `<button class="btn primary block" data-action="addBooking">+ Uusi varaus</button>`;
   const up = bks.filter(b => bEnd(b) >= t).sort((a, b) => a.start.localeCompare(b.start));
   const past = bks.filter(b => bEnd(b) < t).sort((a, b) => b.start.localeCompare(a.start));
+  h += usageStats(bks);
   h += secH("Tulevat") + (up.length ? `<div class="list">${up.map(b => bookingRow(b)).join("")}</div>` : empty("Ei tulevia varauksia."));
   if (past.length) h += details("d-past", `Menneet (${past.length})`, `<div class="list">${past.slice(0, 30).map(b => bookingRow(b, false)).join("")}</div>`);
+  return h;
+}
+// ---------- Käyttötilastot (idea 84) ----------
+// Yöt lasketaan saapumispäivästä lähtöpäivää edeltävään yöhön. Vuodenvaihteen yli menevä
+// varaus jakautuu kummallekin vuodelle. Alustavat varaukset näytetään erikseen.
+export function usageStats(bks) {
+  const t = today(), cy = Number(t.slice(0, 4));
+  const years = new Set([cy]);
+  bks.forEach(b => { for (let ds = b.start; ds < bEnd(b); ds = addDays(ds, 1)) years.add(Number(ds.slice(0, 4))); });
+  const ys = [...years].sort((a, b) => b - a);
+  const Y = ys.includes(S.statYear) ? S.statYear : cy, YS = String(Y);
+  const st = {};
+  bks.forEach(b => {
+    let n = 0, fut = 0;
+    for (let ds = b.start; ds < bEnd(b); ds = addDays(ds, 1)) if (ds.startsWith(YS)) { n++; if (ds >= t) fut++; }
+    if (!n) return;
+    const s = (st[b.who] ??= { nights: 0, future: 0, tent: 0, visits: 0 });
+    if (isTent(b)) { s.tent += n; return; }
+    s.nights += n; s.future += fut; s.visits++;
+  });
+  const rows = Object.entries(st).sort((a, b) => b[1].nights - a[1].nights || b[1].tent - a[1].tent || a[0].localeCompare(b[0], "fi"));
+  const total = rows.reduce((s, [, v]) => s + v.nights, 0);
+  const max = Math.max(1, ...rows.map(([, v]) => v.nights + v.tent));
+  const yo = n => `${n} ${n === 1 ? "yö" : "yötä"}`;
+  let h = secH("Käyttötilastot");
+  if (ys.length > 1) h += `<div class="chips years">${ys.map(yy => `<button class="chip-btn ${yy === Y ? "on" : ""}" data-action="statYear" data-year="${yy}">${yy}</button>`).join("")}</div>`;
+  if (!rows.length) return h + empty(`Vuodelle ${Y} ei ole varauksia.`);
+  h += `<div class="card"><div class="card-label">Mökillä vuonna ${Y}</div>
+    <div class="big">${yo(total)}</div><div class="muted small">${rows.filter(([, v]) => v.nights).length} henkilöä · ${rows.reduce((s, [, v]) => s + v.visits, 0)} käyntiä</div>
+    <div class="bars usage">${rows.map(([w, v]) => {
+      const meta = [v.visits ? `${v.visits} ${v.visits === 1 ? "käynti" : "käyntiä"}` : "", v.future ? `${v.future} tulossa` : "", v.tent ? `${v.tent} alustavaa` : "", total && v.nights ? Math.round(v.nights / total * 100) + " %" : ""].filter(Boolean).join(" · ");
+      return `<div class="usage-row"><div class="bar-row"><span class="bar-l"><i class="dot" style="background:${colorFor(w)}"></i>${esc(w)}</span><span class="bar-t"><i style="width:${Math.max(2, v.nights / max * 100)}%;background:${colorFor(w)}"></i>${v.tent ? `<i class="tent" style="width:${v.tent / max * 100}%;--c:${colorFor(w)}"></i>` : ""}</span><span class="bar-v">${yo(v.nights)}</span></div>
+        ${meta ? `<div class="muted small usage-meta">${meta}</div>` : ""}</div>`;
+    }).join("")}</div>
+    <div class="form-note">Yöt lasketaan saapumisillasta lähtöaamuun. Alustavat varaukset eivät ole mukana yhteismäärässä.</div></div>`;
   return h;
 }
 export function bookingRow(b, withClash = true) {
