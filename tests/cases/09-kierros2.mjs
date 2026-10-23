@@ -19,6 +19,7 @@ export default async ({ page, go, text, check, db, OUT }) => {
   check("muut kentät näkyvät", (await page.locator('#modal [name="date"]').count()) === 1 && (await page.locator('#modal [name="cost"]').count()) === 1);
   // 81 rahakenttä
   check("rahakentässä €-merkki", (await page.locator("#modal .money i").count()) >= 1);
+  await page.check('#modal [name="chimneys"][value="sauna"]');
   await page.fill('#modal [name="cost"]', "1250"); await page.locator('#modal [name="cost"]').blur();
   check("summa muotoiltu", (await page.locator('#modal [name="cost"]').inputValue()).replace(/\s/g, " ") === "1 250,00", await page.locator('#modal [name="cost"]').inputValue());
   await page.click('#modal button[type="submit"]'); await page.waitForTimeout(300);

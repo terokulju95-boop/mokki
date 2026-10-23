@@ -329,6 +329,13 @@ details.more .btn { margin-top: 10px; }
 .fld input:focus, .fld select:focus, .fld textarea:focus, .quick input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
 .fld-check { display: flex; align-items: center; gap: 10px; font-weight: 600; padding: 6px 0; }
 .fld-check input { width: 22px; height: 22px; accent-color: var(--green); }
+.multi { display: flex; flex-wrap: wrap; gap: 8px; }
+.multi-opt { flex: 1 1 140px; border: 1px solid var(--line); background: var(--bg); border-radius: var(--ri); padding: 10px 12px; cursor: pointer; }
+.multi-opt:has(input:checked) { border-color: var(--green); }
+.fld .multi-opt input { width: 22px; min-height: 0; height: 22px; padding: 0; flex: none; }
+.sweep-home { display: grid; gap: 10px; }
+.sweep-rows { display: grid; gap: 10px; margin-top: 4px; }
+.sweep-rows .line { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
 .form-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; position: sticky; bottom: 0; background: var(--card); padding: 10px 0 2px; }
 .form-actions .btn.primary { flex: 1; max-width: 240px; margin-left: auto; }
 

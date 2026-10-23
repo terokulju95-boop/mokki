@@ -5,6 +5,7 @@ import { F, backLink } from "../theme.js";
 // ---------- Huolto ----------
 export const LOG_FIELDS = {
   nuohous: [
+    { name: "chimneys", label: "Nuohotut piiput", type: "multicheck", required: true, options: [["sauna", "Saunan piippu"], ["mokki", "Mökin piippu"]], hint: "Valitse molemmat, jos ne nuohottiin samalla kertaa." },
     { name: "date", label: "Päivämäärä", type: "date", required: true, def: today },
     { name: "doer", label: "Kuka nuohosi", type: "select", options: [["nuohooja", "Nuohooja / yritys"], ["itse", "Itse"]] },
     { name: "provider", label: "Nuohooja / yritys", placeholder: "esim. Nuohous Virtanen" },
@@ -47,11 +48,28 @@ export function vHuolto() {
   return h;
 }
 
+// Piiput: sauna ja mökki. Vanhoissa kirjauksissa piippua ei ole merkitty (chimneys puuttuu).
+export const CHIMNEYS = [["sauna", "Saunan piippu"], ["mokki", "Mökin piippu"]];
+export const hasChimney = (l, k) => Array.isArray(l.chimneys) && l.chimneys.includes(k);
+export const lastSweep = (k, logs = list("logs").filter(l => l.type === "nuohous").sort(byDateDesc)) => logs.find(l => hasChimney(l, k));
+export const anyChimneyMarked = logs => logs.some(l => Array.isArray(l.chimneys) && l.chimneys.length);
+export function chimneyText(l) {
+  const c = CHIMNEYS.filter(([k]) => hasChimney(l, k));
+  if (c.length === CHIMNEYS.length) return "Saunan ja mökin piippu";
+  return c.map(([, n]) => n).join(", ");
+}
+
 export function sweepSummary(logs) {
   const last = logs[0];
   if (!last) return `<div class="card"><div class="card-label">Edellinen nuohous</div><div class="muted">Nuohousta ei ole vielä kirjattu.</div></div>`;
-  return `<div class="card"><div class="card-label">Edellinen nuohous</div><div class="big">${fmtDate(last.date)}</div>
-    <div class="muted small">${ago(last.date)} · ${last.doer === "itse" ? "Itse" : esc(last.provider || "Nuohooja")}${last.cost ? " · " + eur(last.cost) : ""}</div></div>`;
+  const who = l => (l.doer === "itse" ? "Itse" : esc(l.provider || "Nuohooja"));
+  if (!anyChimneyMarked(logs)) return `<div class="card"><div class="card-label">Edellinen nuohous</div><div class="big">${fmtDate(last.date)}</div>
+    <div class="muted small">${ago(last.date)} · ${who(last)}${last.cost ? " · " + eur(last.cost) : ""}</div></div>`;
+  return `<div class="card"><div class="card-label">Edellinen nuohous</div><div class="sweep-rows">${CHIMNEYS.map(([k, n]) => {
+    const l = lastSweep(k, logs);
+    return `<div><div class="line"><strong>${n}</strong><span class="big">${l ? fmtDate(l.date) : "–"}</span></div>
+      <div class="muted small">${l ? `${ago(l.date)} · ${who(l)}` : "Ei kirjattu"}</div></div>`;
+  }).join("")}</div></div>`;
 }
 
 export function woodSummary(logs) {
@@ -87,7 +105,7 @@ export function logCard(l) {
   if (l.deviceId && deviceName(l.deviceId)) chips.push(chip("🔧 " + esc(deviceName(l.deviceId))));
   if (l.doer) chips.push(chip(l.doer === "itse" ? "Itse tehty" : "Teetetty"));
   if (l.cost) chips.push(chip(eur(l.cost), "strong"));
-  const title = l.type === "huolto" ? esc(l.title) : l.type === "nuohous" ? "Nuohous" : "Polttopuut";
+  const title = l.type === "huolto" ? esc(l.title) : l.type === "nuohous" ? (chimneyText(l) ? "Nuohous: " + chimneyText(l).toLowerCase() : "Nuohous") : "Polttopuut";
   return `<div class="card log" data-action="editLog" data-id="${l.id}">
     <div class="log-head"><div class="log-title">${title}${l.provider ? ` <span class="muted">· ${esc(l.provider)}</span>` : ""}</div><div class="log-date">${fmtDate(l.date)}</div></div>
     ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}

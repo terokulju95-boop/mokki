@@ -4,7 +4,7 @@ import { timeGreeting } from "../theme.js";
 import { $, S, addMonths, ago, byDateDesc, chip, empty, esc, eur, fmtDate, fmtNum, fmtShort, getInfo, isAdmin, list, nl2br, num, secH, seg, today } from "../core.js";
 import { DEFAULT_THEME, F, HOME_CARDS, HOME_SIZES, T, homeTitle } from "../theme.js";
 import { saveBarState, tId, tText } from "../views/asetukset.js";
-import { openTodos, todoRow } from "../views/huolto.js";
+import { CHIMNEYS, anyChimneyMarked, lastSweep, openTodos, todoRow } from "../views/huolto.js";
 import { SEASON_NAMES, currentRun, seasonByMonth, seasonItems } from "../views/kausi.js";
 import { invRow, shopList, shopRow } from "../views/tavarat.js";
 import { bookingLine } from "../views/tiedot.js";
@@ -72,6 +72,15 @@ export const HOME_DATA = {
   },
   sweep: () => {
     const l = lastLog("nuohous");
+    const sweeps = list("logs").filter(x => x.type === "nuohous").sort(byDateDesc);
+    if (anyChimneyMarked(sweeps)) {
+      const rows = CHIMNEYS.map(([k]) => [k === "sauna" ? "Sauna" : "Mökki", lastSweep(k, sweeps)]);
+      return {
+        href: "#huolto", attrs: tabAttrs("huolto", "nuohous"),
+        body: `<div class="sweep-home">${rows.map(([n, s]) => `<div><div class="muted small">${n}</div>${s ? `<div class="big">${fmtDate(s.date)}</div><div class="muted small">${ago(s.date)}</div>` : '<div class="muted">Ei kirjattu</div>'}</div>`).join("")}</div>`,
+        short: rows.map(([n, s]) => `${n} ${s ? fmtDate(s.date) : "–"}`).join(' <span class="muted">·</span> ')
+      };
+    }
     return {
       href: "#huolto", attrs: tabAttrs("huolto", "nuohous"),
       body: l ? `<div class="big">${fmtDate(l.date)}</div><div class="muted small">${ago(l.date)}${l.doer === "itse" ? " · itse" : ""}</div>` : '<div class="muted">Ei kirjattu</div>',

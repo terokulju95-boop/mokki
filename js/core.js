@@ -272,6 +272,12 @@ export function fieldHtml(f, v) {
       return `<label class="fld"><span>${esc(f.label)}</span><select name="${f.name}" ${req}>${opts.map(([val, l]) => `<option value="${esc(val)}" ${String(v ?? "") === String(val) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
     }
     case "checkbox": return `<label class="fld-check"><input type="checkbox" name="${f.name}" ${v ? "checked" : ""}><span>${esc(f.label)}</span></label>`;
+    case "multicheck": {
+      // Useampi valinta samaan kenttään, tallentuu listana (esim. nuohotut piiput)
+      const sel = Array.isArray(v) ? v : [];
+      return `<div class="fld" data-multi="${f.name}"><span>${esc(f.label)}</span><div class="multi">${f.options.map(([val, l]) =>
+        `<label class="fld-check multi-opt"><input type="checkbox" name="${f.name}" value="${esc(val)}" ${sel.includes(val) ? "checked" : ""}><span>${esc(l)}</span></label>`).join("")}</div>${f.hint ? `<small class="muted">${esc(f.hint)}</small>` : ""}</div>`;
+    }
     case "photos": return `<div class="fld" data-photos="${f.name}"><span>${esc(f.label)}</span><div class="thumbs edit"></div><label class="btn small ghost file-btn">📷 Lisää kuva<input type="file" accept="image/*" multiple data-pfield="${f.name}" hidden></label></div>`;
     case "number": {
       // Rahakentät (otsikossa €): numeronäppäimistö, € -merkki ja muotoilu 1 250,00 (idea 81)
@@ -362,6 +368,11 @@ export function openForm({ title, fields, values = {}, onSubmit, onDelete, submi
       if (f.type === "daterange") {
         out.start = form.elements[f.name + "_start"].value; out.end = form.elements[f.name + "_end"].value || out.start;
         if (!out.start) { alert("Valitse saapumispäivä kalenterista."); return; }
+        continue;
+      }
+      if (f.type === "multicheck") {
+        out[f.name] = [...form.querySelectorAll(`[data-multi="${f.name}"] input:checked`)].map(i => i.value);
+        if (f.required && !out[f.name].length) { alert(`Valitse vähintään yksi: ${f.label.toLowerCase()}.`); return; }
         continue;
       }
       const el = form.elements[f.name];
