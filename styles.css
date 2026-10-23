@@ -377,6 +377,14 @@ details.more .btn { margin-top: 10px; }
 .t-card { display: grid; gap: 12px; }
 .t-preview { background: var(--bg); box-shadow: none; }
 .t-bar { margin-top: 8px; }
+.expiry-sum { padding: 10px 14px; font-size: .92rem; }
+.expiry-sum.bad { background: var(--bad-l); color: var(--bad); border-color: transparent; }
+.expiry-sum.warn { background: var(--warn-l); color: var(--warn); border-color: transparent; }
+.item.exp-bad { box-shadow: inset 4px 0 0 var(--bad); }
+.item.exp-warn { box-shadow: inset 4px 0 0 var(--warn); }
+.item-main .chips { margin: 3px 0 2px; }
+.item-main .chips .chip { white-space: normal; overflow-wrap: anywhere; border-radius: 10px; }
+.home-exp { display: block; margin-bottom: 8px; }
 .chip.ok-chip { background: var(--ok-l); color: var(--ok); font-weight: 600; }
 .t-colors { display: grid; gap: 2px; }
 .t-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; font-size: .95rem; }

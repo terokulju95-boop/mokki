@@ -3,7 +3,7 @@
 //  puuvaraston tila (50) ja turvatarkastukset (101).
 //  Toiminnot kootaan DEVICE_ACTIONS-olioon, jonka actions.js liittää.
 // =============================================================
-import { S, list, esc, nl2br, chip, empty, secH, fmtDate, fmtDT, today, nowIso, byDateDesc, thumbs, save, patch, remove, toast, openForm, getInfo, MAINT_CATS } from "../core.js";
+import { S, daysBetween, list, esc, nl2br, chip, empty, secH, fmtDate, fmtDT, today, nowIso, byDateDesc, thumbs, save, patch, remove, toast, openForm, getInfo, MAINT_CATS } from "../core.js";
 import { backLink } from "../theme.js";
 import { render } from "../main.js";
 
@@ -86,20 +86,40 @@ const CHECK_SUGGESTIONS = ["Ensiapulaukku", "Sammutin", "Sammutuspeite", "Palova
 const CHECK_FIELDS = [
   { name: "name", label: "Kohde", required: true, list: CHECK_SUGGESTIONS },
   { name: "location", label: "Sijainti", placeholder: "esim. Keittiön kaappi" },
+  { name: "expires", label: "Voimassa asti", type: "date" },
+  { type: "note", label: "Esim. sammuttimen seuraava huolto, ensiapulaukun tarvikkeiden viimeinen käyttöpäivä tai palovaroittimen vaihtovuosi. Jätä tyhjäksi, jos ei vanhene." },
   { name: "notes", label: "Ohje / mitä tarkastetaan", type: "textarea", rows: 2, placeholder: "esim. painemittari vihreällä, sinetti ehjä" }
 ];
+// Voimassaolo (idea: tarkastettavat vanhenevat). Varoitus 60 päivää ennen.
+export const EXPIRY_WARN_DAYS = 60;
+export function expiryState(c) {
+  if (!c.expires) return null;
+  const d = daysBetween(today(), c.expires);
+  if (d < 0) return { cls: "bad", rank: 0, d, text: `Vanhentunut ${fmtDate(c.expires)}` };
+  if (d === 0) return { cls: "bad", rank: 0, d, text: "Vanhenee tänään" };
+  if (d <= EXPIRY_WARN_DAYS) return { cls: "warn", rank: 1, d, text: `Vanhenee ${fmtDate(c.expires)} (${d} pv)` };
+  return { cls: "ok-chip", rank: 2, d, text: `Voimassa ${fmtDate(c.expires)} asti` };
+}
+// Vanhentuneet ja pian vanhenevat (etusivua varten), kiireellisin ensin
+export const expiringChecks = () => list("checks").map(c => [c, expiryState(c)]).filter(([, e]) => e && e.rank < 2).sort((a, b) => a[1].d - b[1].d);
+
 export function vTarkastukset() {
-  const cs = list("checks").sort((a, b) => a.name.localeCompare(b.name, "fi"));
-  let h = `<p class="form-note">Merkitse, milloin turvavälineet on viimeksi tarkastettu. Pelkkä tieto edellisestä kerrasta, ei muistutuksia.</p>`;
-  h += cs.length ? `<div class="list">${cs.map(c => {
+  const cs = list("checks").map(c => [c, expiryState(c)])
+    .sort(([a, ea], [b, eb]) => ((ea?.rank ?? 3) - (eb?.rank ?? 3)) || (ea && eb && ea.rank < 2 ? ea.d - eb.d : 0) || a.name.localeCompare(b.name, "fi"));
+  const bad = cs.filter(([, e]) => e?.rank === 0).length, soon = cs.filter(([, e]) => e?.rank === 1).length;
+  let h = `<p class="form-note">Merkitse, milloin turvavälineet on viimeksi tarkastettu. Voit lisätä kohteelle voimassaolopäivän, jolloin näet ajoissa, mikä on vanhenemassa.</p>`;
+  if (bad || soon) h += `<div class="card expiry-sum ${bad ? "bad" : "warn"}">${[bad ? `<b>${bad} vanhentunut</b>` : "", soon ? `${soon} vanhenee ${EXPIRY_WARN_DAYS} päivän sisällä` : ""].filter(Boolean).join(" · ")}</div>`;
+  h += cs.length ? `<div class="list">${cs.map(([c, e]) => {
     const last = c.history?.[0];
-    return `<div class="item"><div class="item-row">
-      <div class="item-main"><div class="item-title">${esc(c.name)}</div><div class="by">${last ? `✓ ${fmtDate(last.date)} · ${esc(last.by)}` : '<span class="warn">Ei tarkastettu</span>'}${c.location ? " · " + esc(c.location) : ""}</div>${c.notes ? `<div class="by">${esc(c.notes)}</div>` : ""}</div>
+    return `<div class="item ${e && e.rank < 2 ? "exp-" + e.cls : ""}"><div class="item-row">
+      <div class="item-main"><div class="item-title">${esc(c.name)}</div>
+        ${e ? `<div class="chips">${chip(esc(e.text), e.cls)}</div>` : ""}
+        <div class="by">${last ? `✓ ${fmtDate(last.date)} · ${esc(last.by)}` : '<span class="warn">Ei tarkastettu</span>'}${c.location ? " · " + esc(c.location) : ""}</div>${c.notes ? `<div class="by">${esc(c.notes)}</div>` : ""}</div>
       <button class="btn small ${last?.date === today() ? "ghost" : ""}" data-action="checkDone" data-id="${c.id}">${last?.date === today() ? "✓ Tänään" : "✓ Tarkastettu"}</button>
       <button class="icon-btn" data-action="editCheck" data-id="${c.id}" aria-label="Muokkaa">✎</button>
     </div></div>`;
   }).join("")}</div>` : "";
-  const missing = CHECK_SUGGESTIONS.filter(s => !cs.some(c => c.name.toLowerCase() === s.toLowerCase()));
+  const missing = CHECK_SUGGESTIONS.filter(s => !cs.some(([c]) => c.name.toLowerCase() === s.toLowerCase()));
   h += `<div class="chips">${missing.map(s => `<button class="chip-btn" data-action="addCheck" data-name="${esc(s)}">+ ${esc(s)}</button>`).join("")}<button class="chip-btn" data-action="addCheck">+ Muu</button></div>`;
   return h;
 }
