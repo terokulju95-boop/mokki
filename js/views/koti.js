@@ -1,5 +1,5 @@
 import { render } from "../main.js";
-import { expiringChecks, woodStockLabel } from "./laitteet.js";
+import { checkTitle, expiringChecks, woodStockLabel } from "./laitteet.js";
 import { timeGreeting } from "../theme.js";
 import { $, S, addMonths, ago, byDateDesc, chip, empty, esc, eur, fmtDate, fmtNum, fmtShort, getInfo, isAdmin, list, nl2br, num, secH, seg, today } from "../core.js";
 import { DEFAULT_THEME, F, HOME_CARDS, HOME_SIZES, T, homeTitle } from "../theme.js";
@@ -64,13 +64,13 @@ export const HOME_DATA = {
   maint: () => {
     // Vanhentuneet / pian vanhenevat tarkastettavat (esim. sammutin) huoltotöiden kortin alkuun
     const exp = expiringChecks();
-    const expWarn = () => exp.length ? `<a class="home-exp" href="#huoltotyot" ${tabAttrs("huoltotyot", "tarkastukset")}><span class="chips">${exp.slice(0, 3).map(([c, e]) => chip("⚠ " + esc(c.name) + ": " + esc(e.text.charAt(0).toLowerCase() + e.text.slice(1)), e.cls)).join("")}${exp.length > 3 ? chip("+" + (exp.length - 3)) : ""}</span></a>` : "";
+    const expWarn = () => exp.length ? `<a class="home-exp" href="#huoltotyot" ${tabAttrs("huoltotyot", "tarkastukset")}><span class="chips">${exp.slice(0, 3).map(([c, e]) => chip("⚠ " + checkTitle(c) + ": " + esc(e.text.charAt(0).toLowerCase() + e.text.slice(1)), e.cls)).join("")}${exp.length > 3 ? chip("+" + (exp.length - 3)) : ""}</span></a>` : "";
     const logs = list("logs").filter(l => l.type === "huolto").sort(byDateDesc);
     return {
       href: "#huoltotyot", noFullLink: true,
       right: `<a href="#huoltotyot">Kaikki ›</a>`,
       body: expWarn() + (logs.length ? logs.slice(0, 4).map(l => `<div class="line"><span>${esc(l.title)}</span><span class="muted">${fmtDate(l.date)}</span></div>`).join("") : '<div class="muted">Ei kirjattuja huoltotöitä.</div>'),
-      short: (exp.length ? `<span class="${exp[0][1].cls === "bad" ? "bad" : "warn"}">⚠ ${esc(exp[0][0].name)}${exp.length > 1 ? ` +${exp.length - 1}` : ""}</span> <span class="muted">· </span>` : "")
+      short: (exp.length ? `<span class="${exp[0][1].cls === "bad" ? "bad" : "warn"}">⚠ ${checkTitle(exp[0][0])}${exp.length > 1 ? ` +${exp.length - 1}` : ""}</span> <span class="muted">· </span>` : "")
         + (logs.length ? `${esc(logs[0].title)} <span class="muted">· ${fmtDate(logs[0].date)}</span>` : '<span class="muted">Ei kirjattuja huoltotöitä</span>')
     };
   },

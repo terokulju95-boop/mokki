@@ -85,7 +85,9 @@ export function woodStockCard() {
 const CHECK_SUGGESTIONS = ["Ensiapulaukku", "Sammutin", "Sammutuspeite", "Palovaroittimet", "Häkävaroitin", "Pelastusliivit"];
 const CHECK_FIELDS = [
   { name: "name", label: "Kohde", required: true, list: CHECK_SUGGESTIONS },
-  { name: "location", label: "Sijainti", placeholder: "esim. Keittiön kaappi" },
+  { name: "qty", label: "Määrä (kpl)", type: "number", placeholder: "1" },
+  { type: "note", label: "Jos useammalla samanlaisella (esim. sammuttimella) on sama voimassaolopäivä, merkitse ne tähän yhteen kirjaukseen määrällä. Jos päivät ovat eri, lisää jokaiselle oma kohde." },
+  { name: "location", label: "Sijainti", placeholder: "esim. Keittiö, sauna ja aitta" },
   { name: "expires", label: "Voimassa asti", type: "date" },
   { type: "note", label: "Esim. sammuttimen seuraava huolto, ensiapulaukun tarvikkeiden viimeinen käyttöpäivä tai palovaroittimen vaihtovuosi. Jätä tyhjäksi, jos ei vanhene." },
   { name: "notes", label: "Ohje / mitä tarkastetaan", type: "textarea", rows: 2, placeholder: "esim. painemittari vihreällä, sinetti ehjä" }
@@ -101,26 +103,29 @@ export function expiryState(c) {
   return { cls: "ok-chip", rank: 2, d, text: `Voimassa ${fmtDate(c.expires)} asti` };
 }
 // Vanhentuneet ja pian vanhenevat (etusivua varten), kiireellisin ensin
+export const checkQty = c => Math.max(1, Math.round(Number(c.qty) || 1));
+export const checkTitle = c => esc(c.name) + (checkQty(c) > 1 ? ` × ${checkQty(c)}` : "");
 export const expiringChecks = () => list("checks").map(c => [c, expiryState(c)]).filter(([, e]) => e && e.rank < 2).sort((a, b) => a[1].d - b[1].d);
 
 export function vTarkastukset() {
   const cs = list("checks").map(c => [c, expiryState(c)])
     .sort(([a, ea], [b, eb]) => ((ea?.rank ?? 3) - (eb?.rank ?? 3)) || (ea && eb && ea.rank < 2 ? ea.d - eb.d : 0) || a.name.localeCompare(b.name, "fi"));
-  const bad = cs.filter(([, e]) => e?.rank === 0).length, soon = cs.filter(([, e]) => e?.rank === 1).length;
+  const sumQ = r => cs.filter(([, e]) => e?.rank === r).reduce((n, [c]) => n + checkQty(c), 0);
+  const bad = sumQ(0), soon = sumQ(1);
   let h = `<p class="form-note">Merkitse, milloin turvavälineet on viimeksi tarkastettu. Voit lisätä kohteelle voimassaolopäivän, jolloin näet ajoissa, mikä on vanhenemassa.</p>`;
   if (bad || soon) h += `<div class="card expiry-sum ${bad ? "bad" : "warn"}">${[bad ? `<b>${bad} vanhentunut</b>` : "", soon ? `${soon} vanhenee ${EXPIRY_WARN_DAYS} päivän sisällä` : ""].filter(Boolean).join(" · ")}</div>`;
   h += cs.length ? `<div class="list">${cs.map(([c, e]) => {
     const last = c.history?.[0];
     return `<div class="item ${e && e.rank < 2 ? "exp-" + e.cls : ""}"><div class="item-row">
-      <div class="item-main"><div class="item-title">${esc(c.name)}</div>
+      <div class="item-main"><div class="item-title">${esc(c.name)}${checkQty(c) > 1 ? ` <span class="qty-badge">× ${checkQty(c)}</span>` : ""}</div>
         ${e ? `<div class="chips">${chip(esc(e.text), e.cls)}</div>` : ""}
         <div class="by">${last ? `✓ ${fmtDate(last.date)} · ${esc(last.by)}` : '<span class="warn">Ei tarkastettu</span>'}${c.location ? " · " + esc(c.location) : ""}</div>${c.notes ? `<div class="by">${esc(c.notes)}</div>` : ""}</div>
       <button class="btn small ${last?.date === today() ? "ghost" : ""}" data-action="checkDone" data-id="${c.id}">${last?.date === today() ? "✓ Tänään" : "✓ Tarkastettu"}</button>
       <button class="icon-btn" data-action="editCheck" data-id="${c.id}" aria-label="Muokkaa">✎</button>
     </div></div>`;
   }).join("")}</div>` : "";
-  const missing = CHECK_SUGGESTIONS.filter(s => !cs.some(([c]) => c.name.toLowerCase() === s.toLowerCase()));
-  h += `<div class="chips">${missing.map(s => `<button class="chip-btn" data-action="addCheck" data-name="${esc(s)}">+ ${esc(s)}</button>`).join("")}<button class="chip-btn" data-action="addCheck">+ Muu</button></div>`;
+  // Ehdotukset näkyvät aina, jotta samaa kohdetta (esim. useita sammuttimia) voi lisätä monta
+  h += `<div class="chips">${CHECK_SUGGESTIONS.map(s => `<button class="chip-btn" data-action="addCheck" data-name="${esc(s)}">+ ${esc(s)}</button>`).join("")}<button class="chip-btn" data-action="addCheck">+ Muu</button></div>`;
   return h;
 }
 
@@ -140,7 +145,12 @@ export const DEVICE_ACTIONS = {
     toast("Lisätty Hankittaviin");
   },
   setWoodStock: d => { save("info", { woodStock: d.v, woodStockBy: S.me.name, woodStockAt: nowIso() }, "main"); },
-  addCheck: d => openForm({ title: "Uusi tarkastettava", fields: CHECK_FIELDS, values: { name: d.name || "" }, onSubmit: v => { save("checks", { ...v, history: [] }); } }),
+  addCheck: d => {
+    // Jos samanniminen on jo olemassa, ohje ja määrä kopioidaan pohjaksi
+    const same = d.name ? list("checks").find(c => c.name.toLowerCase() === d.name.toLowerCase()) : null;
+    const values = { name: d.name || "", ...(same ? { notes: same.notes || "", qty: same.qty ?? null } : {}) };
+    openForm({ title: same ? `Uusi: ${d.name}` : "Uusi tarkastettava", fields: CHECK_FIELDS, values, onSubmit: v => { save("checks", { ...v, history: [] }); toast("Lisätty"); } });
+  },
   editCheck: d => {
     const c = list("checks").find(x => x.id === d.id); if (!c) return;
     openForm({ title: "Muokkaa", fields: [...CHECK_FIELDS, { type: "note", label: c.history?.length ? "Aiemmat tarkastukset: " + c.history.slice(0, 6).map(h => `${fmtDate(h.date)} (${h.by})`).join(", ") : "Ei aiempia tarkastuksia." }], values: c, onSubmit: v => save("checks", v, c.id), onDelete: () => remove("checks", c.id) });

@@ -28,7 +28,6 @@ export function shopRow(i) {
   return `<div class="item ${i.done ? "is-done" : ""}"><div class="item-row" data-action="toggleShop" data-id="${i.id}" role="button" aria-label="Merkitse ${kind === "osta" ? "hankituksi" : "hoidetuksi"}: ${esc(i.text)}">
     <span class="check ${i.done ? "on" : ""}"></span>
     <div class="item-main"><div class="item-title">${esc(i.text)}</div><div class="by">${sub}</div></div>
-    ${kind === "osta" && !i.done ? `<button class="btn small ghost" data-action="moveShop" data-id="${i.id}" title="Siirrä Vie mukana -listalle">→ Vie</button>` : ""}
     <button class="icon-btn" data-action="delShop" data-id="${i.id}" aria-label="Poista">✕</button>
   </div></div>`;
 }
