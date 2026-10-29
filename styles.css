@@ -377,6 +377,10 @@ details.more .btn { margin-top: 10px; }
 .t-card { display: grid; gap: 12px; }
 .t-preview { background: var(--bg); box-shadow: none; }
 .t-bar { margin-top: 8px; }
+.home-row .item-row { cursor: pointer; }
+.home-dot { width: 8px; height: 8px; flex: none; margin: 0 6px 0 4px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 55%, transparent); }
+.home-go { flex: none; color: var(--muted); font-size: 1.3rem; line-height: 1; padding-left: 2px; }
+.status.static { cursor: default; pointer-events: none; }
 .qty-badge { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 99px; background: var(--green-l); font-size: .8rem; font-weight: 700; vertical-align: 2px; }
 .expiry-sum { padding: 10px 14px; font-size: .92rem; }
 .expiry-sum.bad { background: var(--bad-l); color: var(--bad); border-color: transparent; }
