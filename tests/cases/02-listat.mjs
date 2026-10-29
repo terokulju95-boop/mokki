@@ -15,7 +15,7 @@ export default async ({ page, go, text, check }) => {
   await page.click('[data-action="invStatus"][data-id="i1"]'); await page.waitForTimeout(300);
   await page.click('[data-tab="osta"]'); await page.waitForTimeout(200);
   check("loppunut tavara Hankittaviin", (await text()).includes("Kaasupullo"));
-  await page.click('[data-action="moveShop"]'); await page.waitForTimeout(300);
-  await page.click('[data-tab="vie"]'); await page.waitForTimeout(200);
-  check("siirto Vie mukana -listalle", (await text()).includes("Kaasupullo"));
+  check("Hankittavissa ei ole Vie-nappia", (await page.locator('[data-action="moveShop"]').count()) === 0);
+  await go(page, "#koti");
+  check("etusivun Hankittavissa ei ole Vie-nappia", (await page.locator('[data-action="moveShop"]').count()) === 0);
 };

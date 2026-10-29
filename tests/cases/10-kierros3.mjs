@@ -10,7 +10,9 @@ export default async ({ page, ctx, go, text, check, db, URL0, OUT }) => {
   await page.click('[data-action="calView"][data-v="kk"]').catch(() => {});
   await page.click('[data-action="addBooking"]'); await page.waitForTimeout(250);
   check("kalenterivalitsin lomakkeessa", (await page.locator("#modal .dr-d").count()) >= 28);
-  const days = page.locator("#modal .dr-d:not(.past)");
+  let days = page.locator("#modal .dr-d:not(.past)");
+  // Kuun lopussa tulevia päiviä voi olla liian vähän: siirrytään silloin seuraavaan kuukauteen
+  if (await days.count() < 6) { await page.click('#modal [data-drnav="1"]'); await page.waitForTimeout(150); days = page.locator("#modal .dr-d:not(.past)"); }
   const n = await days.count();
   await days.nth(Math.min(n - 1, 2)).click(); await days.nth(Math.min(n - 1, 5)).click(); await page.waitForTimeout(150);
   const sum = await page.locator("#modal .dr-sum").innerText();
