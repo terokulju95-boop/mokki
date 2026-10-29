@@ -1,5 +1,5 @@
 import { deviceOptions, deviceName, woodStockCard, vTarkastukset } from "./laitteet.js";
-import { $, S, MAINT_CATS, WOOD_TYPES, WOOD_UNITS, ago, byDateDesc, chip, curTab, details, empty, esc, eur, fmtDT, fmtDate, fmtNum, list, nl2br, num, seg, thumbs, today } from "../core.js";
+import { $, homeRow, S, MAINT_CATS, WOOD_TYPES, WOOD_UNITS, ago, byDateDesc, chip, curTab, details, empty, esc, eur, fmtDT, fmtDate, fmtNum, list, nl2br, num, seg, thumbs, today } from "../core.js";
 import { F, backLink } from "../theme.js";
 
 // ---------- Huolto ----------
@@ -139,12 +139,14 @@ export function vTodos() {
   if (done.length) h += details("d-todos", `Tehdyt (${done.length})`, `<div class="list">${done.map(todoRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="todos">Poista tehdyt listalta</button>`);
   return h;
 }
-export function todoRow(t) {
+export function todoRow(t, home = false) {
   const chips = [];
   if (t.priority === "tarkea") chips.push(chip("Tärkeä", "warn"));
   if (t.category) chips.push(chip(esc(t.category)));
   if (F("todoDue") && t.due && !t.done) chips.push(chip(fmtDate(t.due), t.due < today() ? "bad" : ""));
   if (t.assignee) chips.push(chip("👤 " + esc(t.assignee)));
+  // Etusivulla vain luku: ei valintaruutua eikä kynää, napautus avaa Tehtävät-sivun
+  if (home === true) return homeRow(esc(t.text), chips.length ? `<div class="chips">${chips.join("")}</div>` : "", "tehtavat", "");
   return `<div class="item ${t.done ? "is-done" : ""}"><div class="item-row" data-action="toggleTodo" data-id="${t.id}" role="button" aria-label="${t.done ? "Merkitse tekemättömäksi" : "Merkitse tehdyksi"}: ${esc(t.text)}">
     <span class="check ${t.done ? "on" : ""}"></span>
     <div class="item-main"><div class="item-title">${esc(t.text)}</div>

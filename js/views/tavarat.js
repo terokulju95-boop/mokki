@@ -1,5 +1,5 @@
 import { findIn } from "../actions.js";
-import { $, INV_CATS, INV_STATUS, curTab, details, empty, esc, fmtDT, list, secH, seg } from "../core.js";
+import { $, INV_CATS, INV_STATUS, curTab, details, empty, esc, fmtDT, homeRow, list, secH, seg } from "../core.js";
 import { backLink } from "../theme.js";
 
 // ---------- Tavarat ----------
@@ -21,8 +21,10 @@ export function vShopping(kind) {
   if (done.length) h += details("d-shop-" + kind, `${kind === "osta" ? "Hankitut" : "Hoidetut"} (${done.length})`, `<div class="list">${done.map(shopRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="shopping" data-list="${kind}">Tyhjennä listalta</button>`);
   return h;
 }
-// home = etusivun kortti: ei poistonappia, ettei rivejä poisteta vahingossa
+// home = etusivun kortti: vain luku, ei valintaruutua eikä poistonappia (vahinkopainallukset).
+// Rivin napautus avaa listan omalla välilehdellään, jossa merkintä tehdään.
 export function shopRow(i, home = false) {
+  if (home === true) return homeRow(esc(i.text), `<div class="by">${esc(i.createdByName || "")}</div>`, "tavarat", shopList(i));
   const kind = shopList(i);
   const inv = i.invId ? findIn("inventory", i.invId) : null;
   const sub = i.done ? `✓ ${esc(i.doneByName)} · ${fmtDT(i.doneAt)}` : [esc(i.createdByName), inv ? "inventaariosta" + (inv.status && inv.status !== "ok" ? ` (${INV_STATUS[inv.status][0].toLowerCase()})` : "") : ""].filter(Boolean).join(" · ");
@@ -32,9 +34,10 @@ export function shopRow(i, home = false) {
     ${home === true ? "" : `<button class="icon-btn" data-action="delShop" data-id="${i.id}" aria-label="Poista">✕</button>`}
   </div></div>`;
 }
-export function invRow(i) {
+export function invRow(i, home = false) {
   const [lab, cls] = INV_STATUS[i.status || "ok"] || INV_STATUS.ok;
   const sub = [i.qty, i.location].filter(Boolean).map(esc).join(" · ");
+  if (home === true) return homeRow(esc(i.name), sub ? `<div class="by">${sub}</div>` : "", "tavarat", "inv", `<span class="status ${cls} static">${lab}</span>`);
   return `<div class="item"><div class="item-row"><div class="item-main" data-action="editInv" data-id="${i.id}"><div class="item-title">${esc(i.name)}</div>${sub ? `<div class="by">${sub}</div>` : ""}</div><button class="status ${cls}" data-action="invStatus" data-id="${i.id}">${lab}</button></div></div>`;
 }
 export function vInventory() {

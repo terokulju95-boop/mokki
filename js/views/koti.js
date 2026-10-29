@@ -1,7 +1,7 @@
 import { render } from "../main.js";
 import { checkTitle, expiringChecks, woodStockLabel } from "./laitteet.js";
 import { timeGreeting } from "../theme.js";
-import { $, S, addMonths, ago, byDateDesc, chip, empty, esc, eur, fmtDate, fmtNum, fmtShort, getInfo, isAdmin, list, nl2br, num, secH, seg, today } from "../core.js";
+import { $, S, addMonths, ago, byDateDesc, chip, empty, esc, eur, fmtDate, fmtNum, fmtShort, getInfo, homeRow, isAdmin, list, nl2br, num, secH, seg, today } from "../core.js";
 import { DEFAULT_THEME, F, HOME_CARDS, HOME_SIZES, T, homeTitle } from "../theme.js";
 import { saveBarState, tId, tText } from "../views/asetukset.js";
 import { CHIMNEYS, anyChimneyMarked, lastSweep, openTodos, todoRow } from "../views/huolto.js";
@@ -49,7 +49,7 @@ export const HOME_DATA = {
     return {
       count: todos.length, href: "#tehtavat", noFullLink: true,
       right: `<a href="#tehtavat">Kaikki ›</a>`,
-      body: todos.length ? `<div class="list flat">${todos.slice(0, 5).map(todoRow).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>',
+      body: todos.length ? `<div class="list flat">${todos.slice(0, 5).map(t => todoRow(t, true)).join("")}</div>` : '<div class="muted">Ei avoimia tehtäviä.</div>',
       short: todos.length ? esc(todos.slice(0, 3).map(x => x.text).join(", ")) : '<span class="muted">Ei avoimia tehtäviä</span>'
     };
   },
@@ -120,7 +120,8 @@ export const HOME_DATA = {
     const n = items.length, dc = n - left.length;
     const pct = n ? Math.round(dc / n * 100) : 0;
     const head = `<div class="run-head"><div class="big">${SEASON_NAMES[season]}</div>${n ? `<div class="pct ${dc === n ? "ok" : ""}">${dc}/${n}</div>` : ""}</div>${n ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}`;
-    const rows = left.map(it => `<div class="item"><div class="item-row" data-action="toggleCheck" data-id="${it.id}"><span class="check"></span><div class="item-main"><div class="item-title">${esc(it.title)}</div></div></div></div>`).join("");
+    // Etusivulla vain luku: kohdat kuitataan Kausi-sivulla
+    const rows = left.map(it => homeRow(esc(it.title), "", "kausi", season)).join("");
     return {
       href: "#kausi", attrs: tabAttrs("kausi", season), noFullLink: true,
       right: `<a href="#kausi" ${tabAttrs("kausi", season)}>Avaa ›</a>`,
@@ -144,7 +145,7 @@ export const HOME_DATA = {
     return {
       count: inv.length, href: "#tavarat", attrs: tabAttrs("tavarat", "inv"), noFullLink: true,
       right: `<a href="#tavarat" ${tabAttrs("tavarat", "inv")}>Kaikki ›</a>`,
-      body: inv.length ? `<div class="list flat">${inv.slice(0, 10).map(invRow).join("")}</div>${inv.length > 10 ? `<div class="muted small">+ ${inv.length - 10} muuta</div>` : ""}` : '<div class="muted">Inventaario on tyhjä.</div>',
+      body: inv.length ? `<div class="list flat">${inv.slice(0, 10).map(i => invRow(i, true)).join("")}</div>${inv.length > 10 ? `<div class="muted small">+ ${inv.length - 10} muuta</div>` : ""}` : '<div class="muted">Inventaario on tyhjä.</div>',
       short: inv.length ? `${inv.length} tavaraa${low ? ` · <span class="warn">${low} vähissä tai loppu</span>` : ""}` : '<span class="muted">Inventaario on tyhjä</span>'
     };
   }
