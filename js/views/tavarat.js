@@ -21,14 +21,15 @@ export function vShopping(kind) {
   if (done.length) h += details("d-shop-" + kind, `${kind === "osta" ? "Hankitut" : "Hoidetut"} (${done.length})`, `<div class="list">${done.map(shopRow).join("")}</div><button class="btn ghost small" data-action="clearDone" data-col="shopping" data-list="${kind}">Tyhjennä listalta</button>`);
   return h;
 }
-export function shopRow(i) {
+// home = etusivun kortti: ei poistonappia, ettei rivejä poisteta vahingossa
+export function shopRow(i, home = false) {
   const kind = shopList(i);
   const inv = i.invId ? findIn("inventory", i.invId) : null;
   const sub = i.done ? `✓ ${esc(i.doneByName)} · ${fmtDT(i.doneAt)}` : [esc(i.createdByName), inv ? "inventaariosta" + (inv.status && inv.status !== "ok" ? ` (${INV_STATUS[inv.status][0].toLowerCase()})` : "") : ""].filter(Boolean).join(" · ");
   return `<div class="item ${i.done ? "is-done" : ""}"><div class="item-row" data-action="toggleShop" data-id="${i.id}" role="button" aria-label="Merkitse ${kind === "osta" ? "hankituksi" : "hoidetuksi"}: ${esc(i.text)}">
     <span class="check ${i.done ? "on" : ""}"></span>
     <div class="item-main"><div class="item-title">${esc(i.text)}</div><div class="by">${sub}</div></div>
-    <button class="icon-btn" data-action="delShop" data-id="${i.id}" aria-label="Poista">✕</button>
+    ${home === true ? "" : `<button class="icon-btn" data-action="delShop" data-id="${i.id}" aria-label="Poista">✕</button>`}
   </div></div>`;
 }
 export function invRow(i) {

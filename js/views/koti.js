@@ -133,7 +133,7 @@ export const HOME_DATA = {
     return {
       count: items.length, href: "#tavarat", attrs: tabAttrs("tavarat", "osta"), noFullLink: true,
       right: `<a href="#tavarat" ${tabAttrs("tavarat", "osta")}>Kaikki ›</a>`,
-      body: items.length ? `<div class="list flat">${items.slice(0, 8).map(shopRow).join("")}</div>` : '<div class="muted">Ei hankittavaa.</div>',
+      body: items.length ? `<div class="list flat">${items.slice(0, 8).map(i => shopRow(i, true)).join("")}</div>` : '<div class="muted">Ei hankittavaa.</div>',
       short: items.length ? esc(items.slice(0, 4).map(x => x.text).join(", ")) : '<span class="muted">Ei hankittavaa</span>'
     };
   },
