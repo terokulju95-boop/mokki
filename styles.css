@@ -377,6 +377,7 @@ details.more .btn { margin-top: 10px; }
 .t-card { display: grid; gap: 12px; }
 .t-preview { background: var(--bg); box-shadow: none; }
 .t-bar { margin-top: 8px; }
+.qty-badge { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 99px; background: var(--green-l); font-size: .8rem; font-weight: 700; vertical-align: 2px; }
 .expiry-sum { padding: 10px 14px; font-size: .92rem; }
 .expiry-sum.bad { background: var(--bad-l); color: var(--bad); border-color: transparent; }
 .expiry-sum.warn { background: var(--warn-l); color: var(--warn); border-color: transparent; }
