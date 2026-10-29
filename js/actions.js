@@ -110,7 +110,6 @@ export const ACTIONS = {
     }
   },
   delShop: d => remove("shopping", d.id),
-  moveShop: d => { patch("shopping", d.id, { list: "vie" }); toast("Siirretty Vie mukana -listalle"); },
   addInv: () => openForm({ formKey: "tavara", title: "Uusi tavara", fields: INV_FIELDS, onSubmit: v => { save("inventory", v); } }),
   editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ formKey: "tavara", title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); if (v.status !== "ok") ensureShopping(i.id, v.name); else closeLinked(i.id); }, onDelete: () => remove("inventory", i.id) }); },
   invStatus: d => {
