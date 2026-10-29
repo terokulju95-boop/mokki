@@ -1,8 +1,14 @@
 // Rivin napautus = tehty, kynä = muokkaa, inventaario → hankittavat
 export default async ({ page, go, text, check }) => {
   await go(page, "#koti");
-  await page.locator('.home-grid [data-action="toggleCheck"]').first().click(); await page.waitForTimeout(300);
-  check("kausilistan kuittaus etusivulta", (await text()).includes("1/2"));
+  // Etusivun listat ovat vain luku: ei valintaruutuja, ruksia eikä tilanappeja
+  check("etusivulla ei valintaruutuja", await page.locator('.home-grid .check, .home-grid [data-action="toggleCheck"], .home-grid [data-action="toggleTodo"], .home-grid [data-action="toggleShop"], .home-grid [data-action="invStatus"], .home-grid [data-action="delShop"]').count() === 0);
+  await page.locator('.home-grid .home-row').first().click(); await page.waitForTimeout(300);
+  check("etusivun kausilistan rivi ei kuittaa", !(await text()).includes("1/2"));
+  check("rivin napautus avaa Kausi-sivun", page.url().endsWith("#kausi"));
+  await page.locator('[data-action="toggleCheck"]').first().click(); await page.waitForTimeout(300);
+  await go(page, "#koti");
+  check("kuittaus Kausi-sivulla näkyy etusivulla", (await text()).includes("1/2"));
   await go(page, "#tehtavat");
   await page.click('.item-row[data-action="toggleTodo"] .item-title'); await page.waitForTimeout(300);
   check("tehtävä tehdyksi rivin napautuksella", (await page.locator(".item.is-done").count()) === 1);
