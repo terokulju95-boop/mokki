@@ -18,4 +18,7 @@ export default async ({ page, go, text, check }) => {
   check("Hankittavissa ei ole Vie-nappia", (await page.locator('[data-action="moveShop"]').count()) === 0);
   await go(page, "#koti");
   check("etusivun Hankittavissa ei ole Vie-nappia", (await page.locator('[data-action="moveShop"]').count()) === 0);
+  check("etusivun Hankittavissa ei ole poistonappia", (await page.locator('[data-action="delShop"]').count()) === 0);
+  await go(page, "#tavarat"); await page.click('[data-tab="osta"]'); await page.waitForTimeout(200);
+  check("Tavarat-osiossa poistonappi on", (await page.locator('[data-action="delShop"]').count()) > 0);
 };
