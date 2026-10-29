@@ -490,3 +490,9 @@ function setupRange(box, f) {
   [inS, inE].forEach(i => i.addEventListener("change", () => { st.waitingEnd = false; if (inS.value) { st.month = inS.value.slice(0, 7); set(inS.value, inE.value && inE.value >= inS.value ? inE.value : inS.value); } }));
   draw();
 }
+
+// Etusivun vain luku -rivi: ei valintaruutua eikä painikkeita, napautus avaa osion välilehden
+export function homeRow(title, sub, view, tab, right = "") {
+  return `<div class="item home-row"><div class="item-row" data-action="tab" data-view="${view}" data-tab="${esc(tab)}" role="link" aria-label="Avaa: ${title}">
+    <span class="home-dot" aria-hidden="true"></span><div class="item-main"><div class="item-title">${title}</div>${sub || ""}</div>${right}<span class="home-go" aria-hidden="true">›</span></div></div>`;
+}
