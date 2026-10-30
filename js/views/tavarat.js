@@ -1,5 +1,5 @@
 import { findIn } from "../actions.js";
-import { $, INV_CATS, INV_STATUS, curTab, details, empty, esc, fmtDT, homeRow, list, secH, seg } from "../core.js";
+import { $, INV_CATS, INV_EXPIRY_WARN, INV_NEEDS, INV_RANK, INV_STATUS, chip, curTab, daysBetween, fmtDate, invState, today, details, empty, esc, fmtDT, homeRow, list, secH, seg } from "../core.js";
 import { backLink } from "../theme.js";
 
 // ---------- Tavarat ----------
@@ -34,24 +34,35 @@ export function shopRow(i, home = false) {
     ${home === true ? "" : `<button class="icon-btn" data-action="delShop" data-id="${i.id}" aria-label="Poista">✕</button>`}
   </div></div>`;
 }
+// Vanhenemispäivän teksti tavaran alle
+export function invExpiry(i) {
+  if (!i.expires) return "";
+  const d = daysBetween(today(), i.expires);
+  if (d < 0) return `<span class="bad">Vanheni ${fmtDate(i.expires)}</span>`;
+  if (d <= INV_EXPIRY_WARN) return `<span class="warn">Vanhenee ${fmtDate(i.expires)}${d === 0 ? " (tänään)" : ` (${d} pv)`}</span>`;
+  return `Vanhenee ${fmtDate(i.expires)}`;
+}
 export function invRow(i, home = false) {
-  const [lab, cls] = INV_STATUS[i.status || "ok"] || INV_STATUS.ok;
-  const sub = [i.qty, i.location].filter(Boolean).map(esc).join(" · ");
+  const st = invState(i);
+  const [lab, cls] = INV_STATUS[st];
+  const sub = [...[i.qty, i.location].filter(Boolean).map(esc), invExpiry(i)].filter(Boolean).join(" · ");
   if (home === true) return homeRow(esc(i.name), sub ? `<div class="by">${sub}</div>` : "", "tavarat", "inv", `<span class="status ${cls} static">${lab}</span>`);
-  return `<div class="item"><div class="item-row"><div class="item-main" data-action="editInv" data-id="${i.id}"><div class="item-title">${esc(i.name)}</div>${sub ? `<div class="by">${sub}</div>` : ""}</div><button class="status ${cls}" data-action="invStatus" data-id="${i.id}">${lab}</button></div></div>`;
+  return `<div class="item"><div class="item-row"><div class="item-main" data-action="editInv" data-id="${i.id}"><div class="item-title">${esc(i.name)}</div>${sub ? `<div class="by">${sub}</div>` : ""}</div><button class="status ${cls}" data-action="invStatus" data-id="${i.id}" aria-label="Tila: ${lab}. Vaihda tila">${lab} <span class="status-caret" aria-hidden="true">▾</span></button></div></div>`;
 }
 export function vInventory() {
   const inv = list("inventory");
-  let h = `<p class="form-note">Mitä mökillä on. Napauta tilaa (OK → Vähissä → Loppu). Vähissä tai loppu oleva tavara lisätään Hankittavat-listaan.</p>
+  let h = `<p class="form-note">Mitä mökillä on. Napauta tilaa vaihtaaksesi sen. Vähissä, loppu, vanhentunut tai rikki oleva tavara lisätään Hankittavat-listaan. Jos tavaralla on vanhenemispäivä, se merkitään vanhentuneeksi automaattisesti.</p>
     <button class="btn primary block" data-action="addInv">+ Lisää tavara</button>`;
   if (!inv.length) return h + empty("Inventaario on tyhjä.");
-  const low = inv.filter(i => i.status && i.status !== "ok").length;
-  if (low) h += `<div class="card warn-card">${low} tavaraa vähissä tai loppu.</div>`;
+  const cnt = s => inv.filter(i => invState(i) === s).length;
+  const need = INV_NEEDS.map(s => [s, cnt(s)]).filter(([, n]) => n);
+  const soon = inv.filter(i => i.expires && invState(i) !== "vanhentunut" && daysBetween(today(), i.expires) <= INV_EXPIRY_WARN && daysBetween(today(), i.expires) >= 0).length;
+  if (need.length || soon) h += `<div class="card warn-card">${[...need.map(([s, n]) => `${n} ${INV_STATUS[s][0].toLowerCase()}`), soon ? `${soon} vanhenee pian` : ""].filter(Boolean).join(" · ")}</div>`;
   const cats = [...INV_CATS, ...new Set(inv.map(i => i.category).filter(c => !INV_CATS.includes(c)))];
   cats.forEach(c => {
-    const items = inv.filter(i => (i.category || "Muu") === c).sort((a, b) => a.name.localeCompare(b.name, "fi"));
+    const items = inv.filter(i => (i.category || "Muu") === c).sort((a, b) => (INV_RANK[invState(a)] - INV_RANK[invState(b)]) || a.name.localeCompare(b.name, "fi"));
     if (!items.length) return;
-    h += secH(esc(c)) + `<div class="list">${items.map(invRow).join("")}</div>`;
+    h += secH(esc(c)) + `<div class="list">${items.map(i => invRow(i)).join("")}</div>`;
   });
   return h;
 }

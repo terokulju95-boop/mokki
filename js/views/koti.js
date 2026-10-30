@@ -1,7 +1,7 @@
 import { render } from "../main.js";
 import { checkTitle, expiringChecks, woodStockLabel } from "./laitteet.js";
 import { timeGreeting } from "../theme.js";
-import { $, S, addMonths, ago, byDateDesc, chip, empty, esc, eur, fmtDate, fmtNum, fmtShort, getInfo, homeRow, isAdmin, list, nl2br, num, secH, seg, today } from "../core.js";
+import { $, S, addMonths, ago, byDateDesc, chip, empty, esc, eur, fmtDate, fmtNum, fmtShort, getInfo, homeRow, INV_NEEDS, INV_RANK, invState, isAdmin, list, nl2br, num, secH, seg, today } from "../core.js";
 import { DEFAULT_THEME, F, HOME_CARDS, HOME_SIZES, T, homeTitle } from "../theme.js";
 import { saveBarState, tId, tText } from "../views/asetukset.js";
 import { CHIMNEYS, anyChimneyMarked, lastSweep, openTodos, todoRow } from "../views/huolto.js";
@@ -139,14 +139,13 @@ export const HOME_DATA = {
     };
   },
   inventory: () => {
-    const rank = { loppu: 0, vahissa: 1, ok: 2 };
-    const inv = list("inventory").sort((a, b) => (rank[a.status || "ok"] - rank[b.status || "ok"]) || a.name.localeCompare(b.name, "fi"));
-    const low = inv.filter(i => (i.status || "ok") !== "ok").length;
+    const inv = list("inventory").sort((a, b) => (INV_RANK[invState(a)] - INV_RANK[invState(b)]) || a.name.localeCompare(b.name, "fi"));
+    const low = inv.filter(i => INV_NEEDS.includes(invState(i))).length;
     return {
       count: inv.length, href: "#tavarat", attrs: tabAttrs("tavarat", "inv"), noFullLink: true,
       right: `<a href="#tavarat" ${tabAttrs("tavarat", "inv")}>Kaikki ›</a>`,
       body: inv.length ? `<div class="list flat">${inv.slice(0, 10).map(i => invRow(i, true)).join("")}</div>${inv.length > 10 ? `<div class="muted small">+ ${inv.length - 10} muuta</div>` : ""}` : '<div class="muted">Inventaario on tyhjä.</div>',
-      short: inv.length ? `${inv.length} tavaraa${low ? ` · <span class="warn">${low} vähissä tai loppu</span>` : ""}` : '<span class="muted">Inventaario on tyhjä</span>'
+      short: inv.length ? `${inv.length} tavaraa${low ? ` · <span class="warn">${low} vaatii huomiota</span>` : ""}` : '<span class="muted">Inventaario on tyhjä</span>'
     };
   }
 };
