@@ -9,7 +9,7 @@ import { DEVICE_ACTIONS, deviceName } from "./views/laitteet.js";
 import { parseYmd, ymd } from "./core.js";
 const mondayOfDate = ds => { const d = parseYmd(ds); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return ymd(d); };
 import { MAINT_CATS } from "./core.js";
-import { $, DEFAULT_ITEMS, INV_CATS, LOGIN_EMAIL, LOG_TYPES, NAV_MAX, PAY_CATS, RECUR, RECUR_MONTHS, REP_STATUS, S, USER_KEY, addMonths, auth, collection, db, deleteField, doc, esc, fail, fmtDT, fmtDate, fmtShort, getInfo, isAdmin, list, memberNames, meta, nowIso, openForm, openLightbox, openSheet, patch, remove, save, sendPasswordResetEmail, setDoc, signOut, toast, today, writeBatch } from "./core.js";
+import { $, DEFAULT_ITEMS, INV_CATS, INV_NEEDS, INV_STATUS, invState, LOGIN_EMAIL, LOG_TYPES, NAV_MAX, PAY_CATS, RECUR, RECUR_MONTHS, REP_STATUS, S, USER_KEY, addMonths, auth, collection, db, deleteField, doc, esc, fail, fmtDT, fmtDate, fmtShort, getInfo, isAdmin, list, memberNames, meta, nowIso, openForm, openLightbox, openSheet, patch, remove, save, sendPasswordResetEmail, setDoc, signOut, toast, today, writeBatch } from "./core.js";
 import { authError, render, renderNav, saveUsers, switchUser } from "./main.js";
 import { DEFAULT_THEME, F, THEME_DOC, THEME_PRESETS, cacheTheme, discardThemeDraft, mergeTheme, previewTheme, themeDirty } from "./theme.js";
 import { LOG_ADD, LOG_FIELDS } from "./views/huolto.js";
@@ -106,18 +106,29 @@ export const ACTIONS = {
     if (s.done) patch("shopping", s.id, { done: false, doneByName: null, doneAt: null });
     else {
       patch("shopping", s.id, { done: true, doneByName: S.me.name, doneAt: nowIso() });
-      if (s.invId && findIn("inventory", s.invId)) patch("inventory", s.invId, { status: "ok" });
+      const inv = s.invId && findIn("inventory", s.invId);
+      // Ostettu: tavara on taas kunnossa, ja ohi mennyt vanhenemispäivä poistetaan
+      if (inv) patch("inventory", s.invId, { status: "ok", ...(inv.expires && inv.expires < today() ? { expires: null } : {}) });
     }
   },
   delShop: d => remove("shopping", d.id),
   addInv: () => openForm({ formKey: "tavara", title: "Uusi tavara", fields: INV_FIELDS, onSubmit: v => { save("inventory", v); } }),
-  editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ formKey: "tavara", title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); if (v.status !== "ok") ensureShopping(i.id, v.name); else closeLinked(i.id); }, onDelete: () => remove("inventory", i.id) }); },
+  editInv: d => { const i = findIn("inventory", d.id); if (!i) return; openForm({ formKey: "tavara", title: "Muokkaa tavaraa", fields: INV_FIELDS, values: i, onSubmit: v => { save("inventory", v, i.id); invSyncShopping(i.id, v.name, invState({ ...i, ...v })); }, onDelete: () => remove("inventory", i.id) }); },
+  // Tilan napautus avaa valikon kaikista tiloista
   invStatus: d => {
     const i = findIn("inventory", d.id); if (!i) return;
-    const order = ["ok", "vahissa", "loppu"];
-    const next = order[(order.indexOf(i.status || "ok") + 1) % order.length];
-    patch("inventory", i.id, { status: next, updatedByName: S.me.name, updatedAt: nowIso() });
-    if (next !== "ok") ensureShopping(i.id, i.name); else closeLinked(i.id);
+    const cur = invState(i);
+    openSheet(i.name, `<div class="inv-picker">${Object.entries(INV_STATUS).map(([k, [lab, cls, hint]]) =>
+      `<button class="inv-opt ${k === cur ? "on" : ""}" data-action="invSetStatus" data-id="${i.id}" data-s="${k}" data-mclose><span class="status ${cls} static">${lab}</span><span class="inv-hint">${esc(hint)}</span>${k === cur ? '<span class="inv-cur" aria-label="Nykyinen">✓</span>' : ""}</button>`).join("")}</div>
+      ${i.expires ? `<p class="form-note">${i.expires < today() ? `Vanheni ${fmtDate(i.expires)}. Kun valitset OK, vanha päivä poistetaan – lisää uuden tavaran päivä kynästä.` : `Vanhenee ${fmtDate(i.expires)}. Päivää voi muuttaa kynästä.`}</p>` : ""}`);
+  },
+  invSetStatus: d => {
+    const i = findIn("inventory", d.id); if (!i || !INV_STATUS[d.s]) return;
+    const upd = { status: d.s, updatedByName: S.me.name, updatedAt: nowIso() };
+    // OK uudelle tavaralle: vanhentunut päivä ei enää koske sitä
+    if (d.s === "ok" && i.expires && i.expires < today()) upd.expires = null;
+    patch("inventory", i.id, upd);
+    invSyncShopping(i.id, i.name, invState({ ...i, ...upd }));
   },
 
   // Kulut
@@ -293,6 +304,11 @@ export function ensureShopping(invId, name) {
   toast(`"${name}" lisätty Hankittavat-listaan`);
 }
 // Tavara taas OK → siihen liittyvät avoimet rivit merkitään hoidetuiksi.
+// Hankittavat-lista seuraa tilaa: tarvitaan → lisätään, OK/tilattu → kuitataan, lainassa → ennallaan
+export function invSyncShopping(invId, name, st) {
+  if (INV_NEEDS.includes(st)) ensureShopping(invId, name);
+  else if (st === "ok" || st === "tilattu") closeLinked(invId);
+}
 export function closeLinked(invId) {
   list("shopping").filter(s => !s.done && s.invId === invId).forEach(s => patch("shopping", s.id, { done: true, doneByName: S.me.name, doneAt: nowIso() }));
 }
@@ -333,7 +349,9 @@ export const INV_FIELDS = [
   { name: "category", label: "Kategoria", type: "select", options: INV_CATS },
   { name: "qty", label: "Määrä", placeholder: "esim. 2 kpl, puoli pussia" },
   { name: "location", label: "Säilytyspaikka", placeholder: "esim. Saunan eteinen" },
-  { name: "status", label: "Tilanne", type: "select", options: [["ok", "OK"], ["vahissa", "Vähissä"], ["loppu", "Loppu"]] },
+  { name: "status", label: "Tilanne", type: "select", options: () => Object.entries(INV_STATUS).map(([k, v]) => [k, v[0]]) },
+  { name: "expires", label: "Vanhenee (parasta ennen / käyttöaika)", type: "date" },
+  { type: "note", label: "Esim. ruoat, lääkkeet, laastarit, paristot. Kun päivä on ohi, tavara näkyy vanhentuneena. Jätä tyhjäksi, jos ei vanhene." },
   { name: "notes", label: "Lisätiedot", type: "textarea", rows: 2 }
 ];
 export const PAY_FIELDS = [

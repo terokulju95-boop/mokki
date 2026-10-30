@@ -70,7 +70,28 @@ export const MAINT_CATS = ["Sähkö", "Vesi & viemäri", "Lämmitys & tulisijat"
 export const WOOD_TYPES = ["Koivu", "Sekapuu", "Leppä", "Mänty", "Kuusi", "Haapa", "Muu"];
 export const WOOD_UNITS = [["irto-m³", "irto-m³"], ["pino-m³", "pino-m³"], ["motti", "motti (k-m³)"], ["säkki", "säkki"], ["kpl", "kpl"]];
 export const INV_CATS = ["Ruoka & juoma", "Siivous & hygienia", "Polttoaineet & sytykkeet", "Työkalut & tarvikkeet", "Liinavaatteet", "Ensiapu & turvallisuus", "Muu"];
-export const INV_STATUS = { ok: ["OK", "ok"], vahissa: ["Vähissä", "warn"], loppu: ["Loppu", "bad"] };
+// Inventaarion tilat: [nimi, väriluokka, selitys valikossa]
+export const INV_STATUS = {
+  ok: ["OK", "ok", "Tavaraa on ja se on kunnossa"],
+  vahissa: ["Vähissä", "warn", "Alkaa loppua – lisätään Hankittaviin"],
+  loppu: ["Loppu", "bad", "Ei ole enää – lisätään Hankittaviin"],
+  vanhentunut: ["Vanhentunut", "bad", "Parasta ennen tai käyttöaika ohi – lisätään Hankittaviin"],
+  rikki: ["Rikki", "bad", "Ei toimi – lisätään Hankittaviin"],
+  tilattu: ["Tilattu", "info", "Uusi on tilattu tai ostettu, odottaa toimitusta"],
+  lainassa: ["Lainassa", "info", "Viety pois mökiltä, palautetaan"]
+};
+// Tilat, joissa tavara lisätään automaattisesti Hankittavat-listaan
+export const INV_NEEDS = ["vahissa", "loppu", "vanhentunut", "rikki"];
+// Järjestys listoissa: kiireellisin ensin
+export const INV_RANK = { loppu: 0, vanhentunut: 0, rikki: 1, vahissa: 2, tilattu: 3, lainassa: 4, ok: 5 };
+// Varoitus näin monta päivää ennen vanhenemista
+export const INV_EXPIRY_WARN = 30;
+// Todellinen tila: jos vanhenemispäivä on ohi ja tila on OK tai Vähissä, tavara on vanhentunut
+export function invState(i) {
+  const s = INV_STATUS[i.status] ? i.status : "ok";
+  if (i.expires && i.expires < today() && (s === "ok" || s === "vahissa")) return "vanhentunut";
+  return s;
+}
 export const PAY_CATS = ["Vakuutus", "Sähkö", "Jätehuolto", "Kiinteistövero", "Tiemaksu", "Vesi & jätevesi", "Nettiyhteys", "Muu"];
 export const RECUR = [["kerta", "Kertamaksu"], ["kk", "Kuukausittain"], ["3kk", "Neljännesvuosittain"], ["6kk", "Puolivuosittain"], ["vuosi", "Vuosittain"]];
 export const RECUR_MONTHS = { kk: 1, "3kk": 3, "6kk": 6, vuosi: 12 };
