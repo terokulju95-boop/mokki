@@ -380,6 +380,14 @@ details.more .btn { margin-top: 10px; }
 .home-row .item-row { cursor: pointer; }
 .home-dot { width: 8px; height: 8px; flex: none; margin: 0 6px 0 4px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 55%, transparent); }
 .home-go { flex: none; color: var(--muted); font-size: 1.3rem; line-height: 1; padding-left: 2px; }
+.status.info { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.status-caret { font-size: .7em; opacity: .7; margin-left: 2px; }
+.inv-picker { display: grid; gap: 8px; }
+.inv-opt { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; min-height: 52px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); cursor: pointer; font: inherit; }
+.inv-opt.on { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.inv-opt .status { min-width: 104px; text-align: center; }
+.inv-hint { flex: 1; font-size: .85rem; color: var(--muted); }
+.inv-cur { color: var(--green); font-weight: 800; }
 .status.static { cursor: default; pointer-events: none; }
 .qty-badge { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 99px; background: var(--green-l); font-size: .8rem; font-weight: 700; vertical-align: 2px; }
 .expiry-sum { padding: 10px 14px; font-size: .92rem; }
