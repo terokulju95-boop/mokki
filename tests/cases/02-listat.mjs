@@ -17,8 +17,8 @@ export default async ({ page, go, text, check }) => {
   check("kynä avaa muokkauksen", (await page.locator("#modal.open").count()) === 1);
   await page.click("[data-mclose]");
   await go(page, "#tavarat"); await page.click('[data-tab="inv"]'); await page.waitForTimeout(200);
-  await page.click('[data-action="invStatus"][data-id="i1"]'); await page.waitForTimeout(100);
-  await page.click('[data-action="invStatus"][data-id="i1"]'); await page.waitForTimeout(300);
+  await page.click('[data-action="invStatus"][data-id="i1"]'); await page.waitForTimeout(200);
+  await page.click('[data-action="invSetStatus"][data-s="loppu"]'); await page.waitForTimeout(300);
   await page.click('[data-tab="osta"]'); await page.waitForTimeout(200);
   check("loppunut tavara Hankittaviin", (await text()).includes("Kaasupullo"));
   check("Hankittavissa ei ole Vie-nappia", (await page.locator('[data-action="moveShop"]').count()) === 0);
